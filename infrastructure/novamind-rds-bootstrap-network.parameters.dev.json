@@ -1,0 +1,6 @@
+[
+  {"ParameterKey": "VpcId", "ParameterValue": "vpc-0baf042257d729f7d"},
+  {"ParameterKey": "RdsSecurityGroupId", "ParameterValue": "sg-08972fce9da5f8dac"},
+  {"ParameterKey": "BootstrapSecurityGroupName", "ParameterValue": "novamind-crp-bootstrap-sg-dev"},
+  {"ParameterKey": "PublicHttpsEgressApproved", "ParameterValue": "true"}
+]

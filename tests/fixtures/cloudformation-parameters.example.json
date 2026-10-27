@@ -1,0 +1,10 @@
+[
+  {
+    "ParameterKey": "CreateUserPool",
+    "ParameterValue": "false"
+  },
+  {
+    "ParameterKey": "ExistingUserPoolId",
+    "ParameterValue": "us-east-1_ExamplePool"
+  }
+]

@@ -1,0 +1,9 @@
+# Explicit opt-in overlay for newly-created AUTO investigations.
+# Use with compose.auth.yaml, compose.persistence.yaml, and
+# compose.bedrock.yaml. The dispatcher identity must be a configured staff
+# user in the local auth file; this overlay never enables existing cases.
+services:
+  backend:
+    environment:
+      NOVAMIND_AUTOMATIC_DISPATCHER: "true"
+      NOVAMIND_DISPATCHER_USER_ID: ${NOVAMIND_DISPATCHER_USER_ID:?Set a canonical staff UUID for the AUTO dispatcher}

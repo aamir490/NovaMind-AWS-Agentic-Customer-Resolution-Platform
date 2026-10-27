@@ -1,0 +1,47 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Opt-in novamind-crp dev private ECR repository for the backend image. It creates no ECS services, tasks, secrets, networking, or legacy resources.",
+  "Parameters": {
+    "ProjectPrefix": {"Type": "String", "Default": "novamind-crp", "AllowedValues": ["novamind-crp"]},
+    "Environment": {"Type": "String", "Default": "dev", "AllowedValues": ["dev"]},
+    "CreateEcrRepository": {"Type": "String", "Default": "false", "AllowedValues": ["true", "false"]},
+    "RepositoryName": {"Type": "String", "Default": "novamind-crp-backend-dev", "AllowedPattern": "^novamind-crp-[a-z0-9-]+-dev$"}
+  },
+  "Conditions": {
+    "CreateEcrRepositoryCondition": {"Fn::Equals": [{"Ref": "CreateEcrRepository"}, "true"]}
+  },
+  "Resources": {
+    "BackendRepository": {
+      "Condition": "CreateEcrRepositoryCondition",
+      "Type": "AWS::ECR::Repository",
+      "DeletionPolicy": "Retain",
+      "UpdateReplacePolicy": "Retain",
+      "Properties": {
+        "RepositoryName": {"Ref": "RepositoryName"},
+        "ImageScanningConfiguration": {"ScanOnPush": true},
+        "ImageTagMutability": "IMMUTABLE",
+        "EncryptionConfiguration": {"EncryptionType": "AES256"},
+        "LifecyclePolicy": {
+          "LifecyclePolicyText": "{\"rules\":[{\"rulePriority\":1,\"description\":\"Expire untagged images after one day\",\"selection\":{\"tagStatus\":\"untagged\",\"countType\":\"sinceImagePushed\",\"countUnit\":\"days\",\"countNumber\":1},\"action\":{\"type\":\"expire\"}},{\"rulePriority\":2,\"description\":\"Retain the newest 50 images\",\"selection\":{\"tagStatus\":\"any\",\"countType\":\"imageCountMoreThan\",\"countNumber\":50},\"action\":{\"type\":\"expire\"}}]}"
+        },
+        "Tags": [
+          {"Key": "Project", "Value": "novamind-crp"},
+          {"Key": "Environment", "Value": "dev"},
+          {"Key": "ManagedBy", "Value": "CloudFormation"}
+        ]
+      }
+    }
+  },
+  "Outputs": {
+    "BackendRepositoryArn": {
+      "Condition": "CreateEcrRepositoryCondition",
+      "Value": {"Fn::GetAtt": ["BackendRepository", "Arn"]},
+      "Export": {"Name": {"Fn::Sub": "${ProjectPrefix}-${Environment}-BackendRepositoryArn"}}
+    },
+    "BackendRepositoryUri": {
+      "Condition": "CreateEcrRepositoryCondition",
+      "Value": {"Fn::GetAtt": ["BackendRepository", "RepositoryUri"]},
+      "Export": {"Name": {"Fn::Sub": "${ProjectPrefix}-${Environment}-BackendRepositoryUri"}}
+    }
+  }
+}

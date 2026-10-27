@@ -1,0 +1,266 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Opt-in one-shot sanitized Cognito configuration diagnostic for novamind-crp dev.",
+  "Parameters": {
+    "ProjectPrefix": {
+      "Type": "String",
+      "Default": "novamind-crp",
+      "AllowedValues": [
+        "novamind-crp"
+      ]
+    },
+    "Environment": {
+      "Type": "String",
+      "Default": "dev",
+      "AllowedValues": [
+        "dev"
+      ]
+    },
+    "ImageUri": {
+      "Type": "String",
+      "Default": "357001292388.dkr.ecr.us-east-1.amazonaws.com/novamind-crp-backend-dev@sha256:f740cccc19d02688af249e896785be2c3e2c00ad8be2369d60391e3e82d06d3a",
+      "AllowedPattern": "^[0-9]{12}\\.dkr\\.ecr\\.[a-z0-9-]+\\.amazonaws\\.com/[A-Za-z0-9._/-]+@sha256:[a-f0-9]{64}$"
+    },
+    "CognitoConfigurationSecretArn": {
+      "Type": "String",
+      "Description": "Project Cognito configuration secret; only five JSON keys are projected.",
+      "AllowedPattern": "^arn:aws(?:-[a-z-]+)?:secretsmanager:[a-z0-9-]+:[0-9]{12}:secret:novamind-crp-[A-Za-z0-9/_+=.@!-]+$"
+    },
+    "ExecutionRoleName": {
+      "Type": "String",
+      "Default": "novamind-crp-cognito-config-diagnostic-execution-dev",
+      "AllowedPattern": "^novamind-crp-cognito-config-diagnostic-execution-dev$"
+    },
+    "LogRetentionDays": {
+      "Type": "Number",
+      "Default": 1,
+      "AllowedValues": [
+        1,
+        3,
+        5,
+        7
+      ]
+    }
+  },
+  "Resources": {
+    "DiagnosticLogGroup": {
+      "Type": "AWS::Logs::LogGroup",
+      "DeletionPolicy": "Retain",
+      "UpdateReplacePolicy": "Retain",
+      "Properties": {
+        "LogGroupName": {
+          "Fn::Sub": "/ecs/${ProjectPrefix}/cognito-config-diagnostic/${Environment}"
+        },
+        "RetentionInDays": {
+          "Ref": "LogRetentionDays"
+        },
+        "Tags": [
+          {
+            "Key": "Project",
+            "Value": "novamind-crp"
+          },
+          {
+            "Key": "Environment",
+            "Value": "dev"
+          },
+          {
+            "Key": "ManagedBy",
+            "Value": "CloudFormation"
+          }
+        ]
+      }
+    },
+    "DiagnosticExecutionRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "RoleName": {
+          "Ref": "ExecutionRoleName"
+        },
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "ecs-tasks.amazonaws.com"
+              },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        },
+        "Policies": [
+          {
+            "PolicyName": {
+              "Fn::Sub": "${ProjectPrefix}-cognito-config-diagnostic-execution-${Environment}"
+            },
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Sid": "PullImageToken",
+                  "Effect": "Allow",
+                  "Action": "ecr:GetAuthorizationToken",
+                  "Resource": "*"
+                },
+                {
+                  "Sid": "PullImage",
+                  "Effect": "Allow",
+                  "Action": [
+                    "ecr:BatchCheckLayerAvailability",
+                    "ecr:GetDownloadUrlForLayer",
+                    "ecr:BatchGetImage"
+                  ],
+                  "Resource": {
+                    "Fn::Sub": "arn:${AWS::Partition}:ecr:${AWS::Region}:${AWS::AccountId}:repository/novamind-crp-backend-dev"
+                  }
+                },
+                {
+                  "Sid": "WriteDiagnosticLogs",
+                  "Effect": "Allow",
+                  "Action": [
+                    "logs:CreateLogStream",
+                    "logs:PutLogEvents"
+                  ],
+                  "Resource": {
+                    "Fn::Sub": "${DiagnosticLogGroup.Arn}:*"
+                  }
+                },
+                {
+                  "Sid": "ReadCognitoConfigurationOnly",
+                  "Effect": "Allow",
+                  "Action": "secretsmanager:GetSecretValue",
+                  "Resource": {
+                    "Ref": "CognitoConfigurationSecretArn"
+                  }
+                }
+              ]
+            }
+          }
+        ],
+        "Tags": [
+          {
+            "Key": "Project",
+            "Value": "novamind-crp"
+          },
+          {
+            "Key": "Environment",
+            "Value": "dev"
+          },
+          {
+            "Key": "ManagedBy",
+            "Value": "CloudFormation"
+          }
+        ]
+      }
+    },
+    "DiagnosticTaskDefinition": {
+      "Type": "AWS::ECS::TaskDefinition",
+      "Properties": {
+        "Family": {
+          "Fn::Sub": "${ProjectPrefix}-cognito-config-diagnostic-${Environment}"
+        },
+        "RequiresCompatibilities": [
+          "FARGATE"
+        ],
+        "NetworkMode": "awsvpc",
+        "Cpu": "512",
+        "Memory": "1024",
+        "ExecutionRoleArn": {
+          "Fn::GetAtt": [
+            "DiagnosticExecutionRole",
+            "Arn"
+          ]
+        },
+        "RuntimePlatform": {
+          "CpuArchitecture": "X86_64",
+          "OperatingSystemFamily": "LINUX"
+        },
+        "ContainerDefinitions": [
+          {
+            "Name": "diagnostic",
+            "Image": {
+              "Ref": "ImageUri"
+            },
+            "Essential": true,
+            "ReadonlyRootFilesystem": true,
+            "Command": [
+              "python",
+              "-c",
+              "import base64;exec(compile(base64.b64decode('aW1wb3J0IGpzb24sb3MscmUsc3lzLHV1aWQKZnJvbSB1cmxsaWIucGFyc2UgaW1wb3J0IHVybHNwbGl0Ck49KCdOT1ZBTUlORF9DT0dOSVRPX0lTU1VFUicsJ05PVkFNSU5EX0NPR05JVE9fQ0xJRU5UX0lEJywnTk9WQU1JTkRfQ09HTklUT19DVVNUT01FUl9HUk9VUCcsJ05PVkFNSU5EX0NPR05JVE9fQURNSU5fR1JPVVAnLCdOT1ZBTUlORF9DT0dOSVRPX0NVU1RPTUVSX0JJTkRJTkdTJykKVj17bjpvcy5nZXRlbnYobikgZm9yIG4gaW4gTn07Rj17fTtmYWlsZWQ9RmFsc2U7TT17J2lzc3Vlcic6TlswXSwnY2xpZW50X2lkJzpOWzFdLCdjdXN0b21lcl9ncm91cCc6TlsyXSwnYWRtaW5fZ3JvdXAnOk5bM119CmRlZiBmaWVsZChuYW1lLCBjYXRlZ29yeSk6CiBnbG9iYWwgZmFpbGVkCiBvaz1jYXRlZ29yeT09J09LJzsgZmFpbGVkPWZhaWxlZCBvciBub3Qgb2s7IEZbbmFtZV09eydwcmVzZW50Jzpib29sKFZbTVtuYW1lXV0pLCd2YWxpZCc6b2ssJ2NhdGVnb3J5JzpjYXRlZ29yeX0KaXNzdWVyPVZbTlswXV0KdHJ5OgogaWYgbm90IGlzc3VlcjogcmFpc2UgVmFsdWVFcnJvcignTUlTU0lORycpCiBwPXVybHNwbGl0KGlzc3VlcikKIGlmIHAuc2NoZW1lIT0naHR0cHMnIG9yIHAudXNlcm5hbWUgaXMgbm90IE5vbmUgb3IgcC5wYXNzd29yZCBpcyBub3QgTm9uZSBvciBub3QgcC5ob3N0bmFtZSBvciBub3QgcC5ob3N0bmFtZS5zdGFydHN3aXRoKCdjb2duaXRvLWlkcC4nKSBvciBub3QgcC5ob3N0bmFtZS5lbmRzd2l0aCgoJy5hbWF6b25hd3MuY29tJywnLmFtYXpvbmF3cy5jb20uY24nKSkgb3Igbm90IHAucGF0aC5yZW1vdmVwcmVmaXgoJy8nKSBvciAnLycgaW4gcC5wYXRoLnJlbW92ZXByZWZpeCgnLycpIG9yIGxlbihwLnBhdGgucmVtb3ZlcHJlZml4KCcvJykpPjEyODogcmFpc2UgVmFsdWVFcnJvcignSU5WQUxJRF9JU1NVRVInKQogZmllbGQoJ2lzc3VlcicsJ09LJykKZXhjZXB0IEV4Y2VwdGlvbiBhcyBlOiBmaWVsZCgnaXNzdWVyJyxzdHIoZSkgaWYgc3RyKGUpIGluICgnTUlTU0lORycsJ0lOVkFMSURfSVNTVUVSJykgZWxzZSAnSU5WQUxJRF9JU1NVRVInKQpjbGllbnQ9VltOWzFdXQp0cnk6CiBpZiBub3QgY2xpZW50OiByYWlzZSBWYWx1ZUVycm9yKCdNSVNTSU5HJykKIGlmIG5vdCByZS5mdWxsbWF0Y2gocidbQS1aYS16MC05Xy1dezEsMTI4fScsY2xpZW50KTogcmFpc2UgVmFsdWVFcnJvcignSU5WQUxJRF9DTElFTlRfSUQnKQogZmllbGQoJ2NsaWVudF9pZCcsJ09LJykKZXhjZXB0IEV4Y2VwdGlvbiBhcyBlOiBmaWVsZCgnY2xpZW50X2lkJyxzdHIoZSkgaWYgc3RyKGUpIGluICgnTUlTU0lORycsJ0lOVkFMSURfQ0xJRU5UX0lEJykgZWxzZSAnSU5WQUxJRF9DTElFTlRfSUQnKQpncm91cHM9W10KZm9yIGtleSxsYWJlbCBpbiAoKE5bMl0sJ2N1c3RvbWVyX2dyb3VwJyksKE5bM10sJ2FkbWluX2dyb3VwJykpOgogdmFsdWU9VltrZXldCiB0cnk6CiAgaWYgbm90IHZhbHVlOiByYWlzZSBWYWx1ZUVycm9yKCdNSVNTSU5HJykKICB2YWx1ZT12YWx1ZS5zdHJpcCgpCiAgaWYgbm90IDE8PWxlbih2YWx1ZSk8PTEyOCBvciBhbnkoYy5pc3NwYWNlKCkgZm9yIGMgaW4gdmFsdWUpOiByYWlzZSBWYWx1ZUVycm9yKCdJTlZBTElEX0dST1VQJykKICBncm91cHMuYXBwZW5kKHZhbHVlKTsgZmllbGQobGFiZWwsJ09LJykKIGV4Y2VwdCBFeGNlcHRpb24gYXMgZTogZmllbGQobGFiZWwsc3RyKGUpIGlmIHN0cihlKSBpbiAoJ01JU1NJTkcnLCdJTlZBTElEX0dST1VQJykgZWxzZSAnSU5WQUxJRF9HUk9VUCcpCmlmIGxlbihncm91cHMpPT0yIGFuZCBncm91cHNbMF09PWdyb3Vwc1sxXToKIEZbJ2N1c3RvbWVyX2dyb3VwJ11bJ3ZhbGlkJ109RmFsc2U7RlsnY3VzdG9tZXJfZ3JvdXAnXVsnY2F0ZWdvcnknXT0nRFVQTElDQVRFX0dST1VQJztGWydhZG1pbl9ncm91cCddWyd2YWxpZCddPUZhbHNlO0ZbJ2FkbWluX2dyb3VwJ11bJ2NhdGVnb3J5J109J0RVUExJQ0FURV9HUk9VUCc7ZmFpbGVkPVRydWUKcmF3PVZbTls0XV07Qj17J3ByZXNlbnQnOmJvb2wocmF3KSwnanNvbl90eXBlJzpOb25lLCdwYXJzZV9zdWNjZXNzJzpGYWxzZSwnYmluZGluZ19jb3VudCc6Tm9uZSwndmFsaWQnOkZhbHNlLCdjYXRlZ29yeSc6Tm9uZX0KdHJ5OgogaWYgbm90IHJhdzogcmFpc2UgVmFsdWVFcnJvcignTUlTU0lORycpCiBpZiBsZW4ocmF3KT42NTUzNjogcmFpc2UgVmFsdWVFcnJvcignVE9PX0xBUkdFJykKIGRlZiB1bmlxdWUocGFpcnMpOgogIGQ9e30KICBmb3Igayx2IGluIHBhaXJzOgogICBpZiBrIGluIGQ6IHJhaXNlIFZhbHVlRXJyb3IoJ0RVUExJQ0FURV9KU09OX0tFWScpCiAgIGRba109dgogIHJldHVybiBkCiB0cnk6IHg9anNvbi5sb2FkcyhyYXcsb2JqZWN0X3BhaXJzX2hvb2s9dW5pcXVlKQogZXhjZXB0IGpzb24uSlNPTkRlY29kZUVycm9yOiByYWlzZSBWYWx1ZUVycm9yKCdKU09OX1NZTlRBWF9FUlJPUicpCiBCWydwYXJzZV9zdWNjZXNzJ109VHJ1ZTtCWydqc29uX3R5cGUnXT0nYXJyYXknIGlmIHR5cGUoeClpcyBsaXN0IGVsc2UgJ3N0cmluZycgaWYgdHlwZSh4KWlzIHN0ciBlbHNlICdvYmplY3QnIGlmIHR5cGUoeClpcyBkaWN0IGVsc2UgJ251bGwnIGlmIHggaXMgTm9uZSBlbHNlIHR5cGUoeCkuX19uYW1lX18KIGlmIHR5cGUoeClpcyBub3QgbGlzdCBvciBsZW4oeCk+MTAwMDogcmFpc2UgVmFsdWVFcnJvcignV1JPTkdfSlNPTl9UWVBFJykKIEJbJ2JpbmRpbmdfY291bnQnXT1sZW4oeCk7c2Vlbj1zZXQoKQogZm9yIGl0ZW0gaW4geDoKICBpZiB0eXBlKGl0ZW0paXMgbm90IGRpY3Qgb3Igc2V0KGl0ZW0pIT17J3N1YmplY3RfaWQnLCdjdXN0b21lcl9pZCd9OiByYWlzZSBWYWx1ZUVycm9yKCdSRUNPUkRfVkFMSURBVElPTl9FUlJPUicpCiAgcGFpcj1bXQogIGZvciBrIGluICgnc3ViamVjdF9pZCcsJ2N1c3RvbWVyX2lkJyk6CiAgIHRyeTogcGFyc2VkPXV1aWQuVVVJRChpdGVtW2tdKQogICBleGNlcHQgRXhjZXB0aW9uOiByYWlzZSBWYWx1ZUVycm9yKCdSRUNPUkRfVkFMSURBVElPTl9FUlJPUicpCiAgIHBhaXIuYXBwZW5kKHN0cihwYXJzZWQpKQogIHBhaXI9dHVwbGUocGFpcikKICBpZiBwYWlyIGluIHNlZW4gb3IgcGFpclswXSBpbiB7cFswXSBmb3IgcCBpbiBzZWVufSBvciBwYWlyWzFdIGluIHtwWzFdIGZvciBwIGluIHNlZW59OiByYWlzZSBWYWx1ZUVycm9yKCdSRUNPUkRfVkFMSURBVElPTl9FUlJPUicpCiAgc2Vlbi5hZGQocGFpcikKIEJbJ3ZhbGlkJ109VHJ1ZTtCWydjYXRlZ29yeSddPSdPSycKZXhjZXB0IEV4Y2VwdGlvbiBhcyBlOgogQlsnY2F0ZWdvcnknXT1zdHIoZSkgaWYgc3RyKGUpIGluICgnTUlTU0lORycsJ1RPT19MQVJHRScsJ0RVUExJQ0FURV9KU09OX0tFWScsJ0pTT05fU1lOVEFYX0VSUk9SJywnV1JPTkdfSlNPTl9UWVBFJywnUkVDT1JEX1ZBTElEQVRJT05fRVJST1InKSBlbHNlICdQQVJTRV9PUl9WQUxJREFUSU9OX0VSUk9SJztmYWlsZWQ9VHJ1ZQpwcmludChqc29uLmR1bXBzKHsnZXhlY3V0aW9uX21vZGUnOidzdGFuZGFsb25lJywnYm9vdHN0cmFwX2F1dGhfbW9kZV9jb250cmFjdCc6J05PVkFNSU5EX0FVVEhfTU9ERT1jb2duaXRvIGlzIHJlcXVpcmVkIGJ5IEFQSSBib290c3RyYXA7IHRoaXMgdGFzayBkb2VzIG5vdCBpbnZva2UgYm9vdHN0cmFwJywnZmllbGRzJzpGLCdiaW5kaW5ncyc6Qn0sc29ydF9rZXlzPVRydWUsc2VwYXJhdG9ycz0oJywnLCc6JykpKQpzeXMuZXhpdCgxIGlmIGZhaWxlZCBlbHNlIDAp'),'cognito-diagnostic','exec'))"
+            ],
+            "Environment": [
+              {
+                "Name": "PYTHONUNBUFFERED",
+                "Value": "1"
+              }
+            ],
+            "Secrets": [
+              {
+                "Name": "NOVAMIND_COGNITO_ISSUER",
+                "ValueFrom": {
+                  "Fn::Sub": "${CognitoConfigurationSecretArn}:issuer::"
+                }
+              },
+              {
+                "Name": "NOVAMIND_COGNITO_CLIENT_ID",
+                "ValueFrom": {
+                  "Fn::Sub": "${CognitoConfigurationSecretArn}:client_id::"
+                }
+              },
+              {
+                "Name": "NOVAMIND_COGNITO_CUSTOMER_GROUP",
+                "ValueFrom": {
+                  "Fn::Sub": "${CognitoConfigurationSecretArn}:customer_group::"
+                }
+              },
+              {
+                "Name": "NOVAMIND_COGNITO_ADMIN_GROUP",
+                "ValueFrom": {
+                  "Fn::Sub": "${CognitoConfigurationSecretArn}:admin_group::"
+                }
+              },
+              {
+                "Name": "NOVAMIND_COGNITO_CUSTOMER_BINDINGS",
+                "ValueFrom": {
+                  "Fn::Sub": "${CognitoConfigurationSecretArn}:customer_bindings::"
+                }
+              }
+            ],
+            "LogConfiguration": {
+              "LogDriver": "awslogs",
+              "Options": {
+                "awslogs-group": {
+                  "Ref": "DiagnosticLogGroup"
+                },
+                "awslogs-region": {
+                  "Ref": "AWS::Region"
+                },
+                "awslogs-stream-prefix": "diagnostic"
+              }
+            }
+          }
+        ]
+      }
+    }
+  },
+  "Outputs": {
+    "DiagnosticTaskDefinitionArn": {
+      "Value": {
+        "Ref": "DiagnosticTaskDefinition"
+      }
+    },
+    "DiagnosticLogGroupName": {
+      "Value": {
+        "Ref": "DiagnosticLogGroup"
+      }
+    },
+    "DiagnosticExecutionRoleArn": {
+      "Value": {
+        "Fn::GetAtt": [
+          "DiagnosticExecutionRole",
+          "Arn"
+        ]
+      }
+    }
+  }
+}

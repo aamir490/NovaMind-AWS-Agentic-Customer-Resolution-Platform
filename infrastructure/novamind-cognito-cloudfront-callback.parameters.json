@@ -1,0 +1,18 @@
+[
+  {"ParameterKey":"ProjectName","ParameterValue":"novamind-crp"},
+  {"ParameterKey":"EnvironmentName","ParameterValue":"dev"},
+  {"ParameterKey":"CreateUserPool","ParameterValue":"true"},
+  {"ParameterKey":"ExistingUserPoolId","ParameterValue":""},
+  {"ParameterKey":"CreateGroups","ParameterValue":"true"},
+  {"ParameterKey":"CreateSpaClient","ParameterValue":"true"},
+  {"ParameterKey":"CreateHostedUiDomain","ParameterValue":"true"},
+  {"ParameterKey":"CreateConfigurationSecret","ParameterValue":"true"},
+  {"ParameterKey":"ConfigurationSecretName","ParameterValue":"novamind-crp-cognito-config-dev"},
+  {"ParameterKey":"CustomerBindingsJson","ParameterValue":"[]"},
+  {"ParameterKey":"HostedUiDomainPrefix","ParameterValue":"novamind-crp-dev-357001292388"},
+  {"ParameterKey":"CallbackUrl","ParameterValue":"https://d15ownu3yckoip.cloudfront.net/"},
+  {"ParameterKey":"LogoutUrl","ParameterValue":"https://d15ownu3yckoip.cloudfront.net/"},
+  {"ParameterKey":"CustomerGroupName","ParameterValue":"customers"},
+  {"ParameterKey":"ReviewerGroupName","ParameterValue":"reviewers"},
+  {"ParameterKey":"AdminGroupName","ParameterValue":"admins"}
+]

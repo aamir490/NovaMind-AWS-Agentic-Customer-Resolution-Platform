@@ -1,0 +1,21 @@
+{
+  "name": "backend",
+  "command": ["python", "-m", "backend.container.ecs_entrypoint"],
+  "readonlyRootFilesystem": true,
+  "environment": [
+    {"name": "NOVAMIND_AUTH_MODE", "value": "cognito"},
+    {"name": "NOVAMIND_COGNITO_ISSUER", "value": "__COGNITO_ISSUER__"},
+    {"name": "NOVAMIND_COGNITO_CLIENT_ID", "value": "__COGNITO_CLIENT_ID__"},
+    {"name": "NOVAMIND_COGNITO_CUSTOMER_GROUP", "value": "__COGNITO_CUSTOMER_GROUP__"},
+    {"name": "NOVAMIND_COGNITO_REVIEWER_GROUP", "value": "__COGNITO_REVIEWER_GROUP__"},
+    {"name": "NOVAMIND_COGNITO_ADMIN_GROUP", "value": "__COGNITO_ADMIN_GROUP__"},
+    {"name": "NOVAMIND_COGNITO_CUSTOMER_BINDINGS", "value": "__COGNITO_CUSTOMER_BINDINGS_JSON__"},
+    {"name": "NOVAMIND_LLM_PROVIDER", "value": "bedrock"},
+    {"name": "AWS_REGION", "value": "__AWS_REGION__"},
+    {"name": "BEDROCK_MODEL_ID", "value": "__BEDROCK_MODEL_ID__"},
+    {"name": "NOVAMIND_AGENT_ENGINE", "value": "langgraph"}
+  ],
+  "secrets": [
+    {"name": "NOVAMIND_POSTGRES_SECRET", "valueFrom": "__APPLICATION_SECRET_ARN__"}
+  ]
+}

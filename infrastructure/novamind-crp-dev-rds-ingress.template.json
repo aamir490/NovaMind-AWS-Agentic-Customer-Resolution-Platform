@@ -1,0 +1,50 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Opt-in novamind-crp dev PostgreSQL ingress only: permanent TCP 5432 from the API SG and imported 6F workload SG. Temporary bootstrap ingress is owned by the bootstrap-support stack.",
+  "Parameters": {
+    "ProjectPrefix": {"Type": "String", "Default": "novamind-crp", "AllowedValues": ["novamind-crp"]},
+    "Environment": {"Type": "String", "Default": "dev", "AllowedValues": ["dev"]},
+    "VpcId": {"Type": "AWS::EC2::VPC::Id", "Default": "vpc-0baf042257d729f7d", "AllowedValues": ["vpc-0baf042257d729f7d"]},
+    "ApiSecurityGroupId": {"Type": "AWS::EC2::SecurityGroup::Id", "Description": "API SG output from novamind-ecs-network-service; that stack currently exposes this as a stack output rather than an export."},
+    "IngressSourcesConfirmed": {"Type": "String", "Default": "false", "AllowedValues": ["true", "false"], "Description": "Set true only after verifying the API and imported workload SGs are in the VPC and have the intended permanent roles."}
+  },
+  "Rules": {
+    "IngressPreflight": {
+      "Assertions": [{
+        "Assert": {"Fn::And": [
+          {"Fn::Equals": [{"Ref": "VpcId"}, "vpc-0baf042257d729f7d"]},
+          {"Fn::Equals": [{"Ref": "IngressSourcesConfirmed"}, "true"]}
+        ]},
+        "AssertDescription": "Verify API, imported workload, and RDS security groups are in the reviewed VPC before creating permanent ingress. Temporary bootstrap approval belongs to the bootstrap-support stack."
+      }]
+    }
+  },
+  "Resources": {
+    "RdsIngressFromApi": {
+      "Type": "AWS::EC2::SecurityGroupIngress",
+      "Properties": {
+        "GroupId": {"Fn::ImportValue": {"Fn::Sub": "${ProjectPrefix}-${Environment}-RdsSecurityGroupId"}},
+        "IpProtocol": "tcp",
+        "FromPort": 5432,
+        "ToPort": 5432,
+        "SourceSecurityGroupId": {"Ref": "ApiSecurityGroupId"},
+        "Description": "NovaMind API to private PostgreSQL"
+      }
+    },
+    "RdsIngressFromWorkload": {
+      "Type": "AWS::EC2::SecurityGroupIngress",
+      "Properties": {
+        "GroupId": {"Fn::ImportValue": {"Fn::Sub": "${ProjectPrefix}-${Environment}-RdsSecurityGroupId"}},
+        "IpProtocol": "tcp",
+        "FromPort": 5432,
+        "ToPort": 5432,
+        "SourceSecurityGroupId": {"Fn::ImportValue": {"Fn::Sub": "${ProjectPrefix}-${Environment}-WorkloadSecurityGroupId"}},
+        "Description": "NovaMind 6F publisher and Strands worker to private PostgreSQL"
+      }
+    }
+  },
+  "Outputs": {
+    "RdsIngressRuleCount": {"Value": "2"},
+    "ApiSecurityGroupId": {"Value": {"Ref": "ApiSecurityGroupId"}}
+  }
+}

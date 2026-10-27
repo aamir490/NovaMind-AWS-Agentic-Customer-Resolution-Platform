@@ -1,0 +1,36 @@
+{
+  "family": "novamind-rds-bootstrap",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "512",
+  "memory": "1024",
+  "executionRoleArn": "__ECS_EXECUTION_ROLE_ARN__",
+  "taskRoleArn": "__BOOTSTRAP_TASK_ROLE_ARN__",
+  "containerDefinitions": [
+    {
+      "name": "rds-bootstrap",
+      "image": "__BACKEND_IMAGE_URI__",
+      "essential": true,
+      "readonlyRootFilesystem": true,
+      "command": ["python", "-m", "backend.container.rds_bootstrap"],
+      "environment": [
+        {"name": "AWS_REGION", "value": "__AWS_REGION__"},
+        {"name": "NOVAMIND_RDS_MASTER_SECRET_ARN", "value": "__RDS_MASTER_SECRET_ARN__"},
+        {"name": "NOVAMIND_RDS_APPLICATION_SECRET_ARN", "value": "__APPLICATION_SECRET_ARN__"},
+        {"name": "NOVAMIND_RDS_ENDPOINT", "value": "__RDS_ENDPOINT__"},
+        {"name": "NOVAMIND_RDS_DATABASE", "value": "novamindcrp"},
+        {"name": "NOVAMIND_RDS_APP_ROLE", "value": "novamind_app"},
+        {"name": "NOVAMIND_RDS_APP_SCHEMA", "value": "novamind"},
+        {"name": "NOVAMIND_RDS_CA_BUNDLE_PATH", "value": "/etc/novamind/rds-ca-bundle.pem"}
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "__CLOUDWATCH_LOG_GROUP__",
+          "awslogs-region": "__AWS_REGION__",
+          "awslogs-stream-prefix": "rds-bootstrap"
+        }
+      }
+    }
+  ]
+}

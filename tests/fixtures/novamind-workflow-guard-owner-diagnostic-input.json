@@ -1,0 +1,19 @@
+{
+  "cluster": "novamind-crp-ecs-cluster-dev",
+  "taskDefinition": "novamind-crp-backend-dev:5",
+  "launchType": "FARGATE",
+  "count": 1,
+  "networkConfiguration": {
+    "awsvpcConfiguration": {
+      "subnets": ["subnet-0405745b30f4764a0", "subnet-0643d7235c890cfe6"],
+      "securityGroups": ["sg-050a7d973aa07816a"],
+      "assignPublicIp": "ENABLED"
+    }
+  },
+  "overrides": {
+    "containerOverrides": [{
+      "name": "backend",
+      "command": ["python", "-c", "import os,sys\nconn=None\ncert=None\ndef f():\n import psycopg\n from backend.container.rds_config import parse_application_secret,materialize_rds_ca_bundle,application_dsn\n raw=os.environ.get('NOVAMIND_POSTGRES_SECRET')\n if not raw: raise ValueError()\n sec=parse_application_secret(raw)\n cert=materialize_rds_ca_bundle(sec.rds_ca_pem)\n conn=psycopg.connect(application_dsn(sec,certificate_path=cert),connect_timeout=10)\n conn.read_only=True\n with conn.transaction():\n  with conn.cursor() as cur:\n   cur.execute(\"SELECT CASE WHEN count(*)=0 THEN 'ABSENT' WHEN bool_and(pg_get_userbyid(p.proowner)='novamind_app') THEN 'OWNED_BY_APP' ELSE 'OTHER_OWNER' END FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='novamind' AND p.proname='novamind_workflow_guard' AND pg_get_function_identity_arguments(p.oid)= ''\")\n   row=cur.fetchone()\n if not row or row[0] not in {'ABSENT','OWNED_BY_APP','OTHER_OWNER'}: raise ValueError()\n return row[0],conn,cert\ntry:\n out,conn,cert=f()\n print(out)\nexcept Exception:\n print('DIAGNOSTIC_ERROR')\n sys.exit(1)\nfinally:\n try:\n  if conn: conn.close()\n except Exception: pass\n try:\n  if cert: os.unlink(cert)\n except Exception: pass"]
+    }]
+  }
+}

@@ -1,0 +1,9 @@
+# Opt-in Bedrock egress and model selection. Supply credentials to the backend
+# through a standard boto3 credential provider in its runtime environment.
+services:
+  backend:
+    environment:
+      NOVAMIND_LLM_PROVIDER: bedrock
+      AWS_REGION: ${AWS_REGION:?Set AWS_REGION in the invoking process}
+      BEDROCK_MODEL_ID: ${BEDROCK_MODEL_ID:?Set BEDROCK_MODEL_ID in the invoking process}
+    networks: [application, edge]

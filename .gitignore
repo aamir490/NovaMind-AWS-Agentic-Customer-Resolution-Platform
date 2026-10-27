@@ -1,0 +1,84 @@
+# Local secrets and environment overrides
+.env
+.env.*
+!.env.example
+!.env.*.example
+.aws/
+*.pem
+*.key
+.container-secrets/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Local conversation persistence and SQLite sidecars
+*.sqlite3
+*.sqlite3-journal
+*.sqlite3-wal
+*.sqlite3-shm
+
+# Node and build output
+node_modules/
+dist/
+build/
+coverage/
+*.tsbuildinfo
+
+# Editors, operating systems, and temporary output
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+*.log
+*.tmp
+
+# Future infrastructure local state
+.terraform/
+*.tfstate
+*.tfstate.*
+cdk.out/
+.aws-sam/
+
+
+# Local NovaMind startup script containing secrets
+START-NOVAMIND-LOCAL.ps1
+
+# Local NovaMind startup script NOTES
+NOTES-NOVAMIND-LOCAL.md
+/archive/
+/steps-to-deploy-alb.md
+/steps_to_deploy_cloudfront_new.md
+/cleanup.md
+/cleanup.sh
+/agent-decision-schema.json
+/frontend-taskdef-ngrok-fix.json
+/inference-config.json
+/inference-test.json
+/messages-test.json
+/messages.json
+/nova-request.json
+/NovaMind-Frontend-Review.txt
+/README-backup.md
+
+/coustomer-admin.txt
+
+/project-pic/
+/NOTES-NOVAMIND-LOCAL.md
+
+# Additional local database protection
+*.sqlite
+*.sqlite-*
+*.db
+*.db-*
+
+# Private project notes
+/private-file.md

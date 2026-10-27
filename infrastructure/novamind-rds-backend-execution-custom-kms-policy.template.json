@@ -1,0 +1,16 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "DecryptOnlyApplicationSecretThroughSecretsManager",
+      "Effect": "Allow",
+      "Action": ["kms:Decrypt"],
+      "Resource": "__APPLICATION_SECRET_KMS_KEY_ARN__",
+      "Condition": {
+        "StringEquals": {
+          "kms:ViaService": "secretsmanager.__AWS_REGION__.amazonaws.com"
+        }
+      }
+    }
+  ]
+}

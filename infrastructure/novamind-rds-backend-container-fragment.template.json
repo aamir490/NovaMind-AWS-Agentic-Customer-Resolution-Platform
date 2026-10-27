@@ -1,0 +1,8 @@
+{
+  "secrets": [
+    {
+      "name": "NOVAMIND_POSTGRES_SECRET",
+      "valueFrom": "__APPLICATION_SECRET_ARN__"
+    }
+  ]
+}

@@ -1,0 +1,84 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Opt-in novamind-crp dev private ECS egress: two dedicated private subnets, one NAT Gateway, and one S3 Gateway Endpoint. It never changes CloudFront Origin subnets.",
+  "Parameters": {
+    "ProjectPrefix": {"Type": "String", "Default": "novamind-crp", "AllowedValues": ["novamind-crp"]},
+    "Environment": {"Type": "String", "Default": "dev", "AllowedValues": ["dev"]},
+    "VpcId": {"Type": "AWS::EC2::VPC::Id", "Default": "vpc-0baf042257d729f7d", "AllowedValues": ["vpc-0baf042257d729f7d"]},
+    "ExistingPublicSubnetId": {"Type": "AWS::EC2::Subnet::Id", "Default": "subnet-00000000", "Description": "Existing public subnet with a confirmed route to an Internet Gateway. This stack does not create or modify its route."},
+    "ExistingPublicRouteTableId": {"Type": "String", "Default": "rtb-00000000", "AllowedPattern": "^rtb-[0-9a-f]+$", "Description": "Existing public route table whose subnet association and Internet Gateway default route were independently verified."},
+    "PublicSubnetInternetGatewayRouteConfirmed": {"Type": "String", "Default": "false", "AllowedValues": ["true", "false"], "Description": "Set true only after independently verifying that the selected public subnet route table has a 0.0.0.0/0 Internet Gateway route."},
+    "PrivateCidrAvailabilityConfirmed": {"Type": "String", "Default": "false", "AllowedValues": ["true", "false"], "Description": "Set true only after independently verifying that both reviewed private CIDRs are unused and non-overlapping in the VPC."},
+    "PrivateSubnetAzA": {"Type": "String", "Default": "us-east-1a", "AllowedValues": ["us-east-1a"]},
+    "PrivateSubnetAzB": {"Type": "String", "Default": "us-east-1b", "AllowedValues": ["us-east-1b"]},
+    "PrivateSubnetCidrA": {"Type": "String", "Default": "172.31.96.0/24", "AllowedValues": ["172.31.96.0/24"]},
+    "PrivateSubnetCidrB": {"Type": "String", "Default": "172.31.97.0/24", "AllowedValues": ["172.31.97.0/24"]}
+  },
+  "Rules": {
+    "ConfirmedPublicEgressPrerequisites": {
+      "Assertions": [{
+        "Assert": {"Fn::And": [
+          {"Fn::Not": [{"Fn::Equals": [{"Ref": "ExistingPublicSubnetId"}, "subnet-00000000"]}]},
+          {"Fn::Not": [{"Fn::Equals": [{"Ref": "ExistingPublicRouteTableId"}, "rtb-00000000"]}]},
+          {"Fn::Equals": [{"Ref": "PublicSubnetInternetGatewayRouteConfirmed"}, "true"]}
+        ]},
+        "AssertDescription": "Provide an independently verified existing public subnet and route table; this stack never creates or repairs Internet Gateway routing."
+      }]
+    },
+    "ConfirmedDevCidrsAndAzs": {
+      "Assertions": [{
+        "Assert": {"Fn::And": [
+          {"Fn::Equals": [{"Ref": "PrivateSubnetAzA"}, "us-east-1a"]},
+          {"Fn::Equals": [{"Ref": "PrivateSubnetAzB"}, "us-east-1b"]},
+          {"Fn::Equals": [{"Ref": "PrivateSubnetCidrA"}, "172.31.96.0/24"]},
+          {"Fn::Equals": [{"Ref": "PrivateSubnetCidrB"}, "172.31.97.0/24"]},
+          {"Fn::Equals": [{"Ref": "PrivateCidrAvailabilityConfirmed"}, "true"]}
+        ]},
+        "AssertDescription": "This dev stack is restricted to the reviewed two-AZ CIDR plan; independently verify that both CIDRs are unused in the VPC before deployment."
+      }]
+    }
+  },
+  "Resources": {
+    "PrivateSubnetA": {
+      "Type": "AWS::EC2::Subnet",
+      "Properties": {
+        "VpcId": {"Ref": "VpcId"},
+        "AvailabilityZone": {"Ref": "PrivateSubnetAzA"},
+        "CidrBlock": {"Ref": "PrivateSubnetCidrA"},
+        "MapPublicIpOnLaunch": false,
+        "Tags": [{"Key": "Name", "Value": {"Fn::Sub": "${ProjectPrefix}-ecs-private-a-${Environment}"}}, {"Key": "Project", "Value": "novamind-crp"}, {"Key": "Environment", "Value": "dev"}, {"Key": "ManagedBy", "Value": "CloudFormation"}]
+      }
+    },
+    "PrivateSubnetB": {
+      "Type": "AWS::EC2::Subnet",
+      "Properties": {
+        "VpcId": {"Ref": "VpcId"},
+        "AvailabilityZone": {"Ref": "PrivateSubnetAzB"},
+        "CidrBlock": {"Ref": "PrivateSubnetCidrB"},
+        "MapPublicIpOnLaunch": false,
+        "Tags": [{"Key": "Name", "Value": {"Fn::Sub": "${ProjectPrefix}-ecs-private-b-${Environment}"}}, {"Key": "Project", "Value": "novamind-crp"}, {"Key": "Environment", "Value": "dev"}, {"Key": "ManagedBy", "Value": "CloudFormation"}]
+      }
+    },
+    "PrivateRouteTableA": {
+      "Type": "AWS::EC2::RouteTable",
+      "Properties": {"VpcId": {"Ref": "VpcId"}, "Tags": [{"Key": "Name", "Value": {"Fn::Sub": "${ProjectPrefix}-ecs-private-rt-a-${Environment}"}}, {"Key": "Project", "Value": "novamind-crp"}, {"Key": "Environment", "Value": "dev"}, {"Key": "ManagedBy", "Value": "CloudFormation"}]}
+    },
+    "PrivateRouteTableB": {
+      "Type": "AWS::EC2::RouteTable",
+      "Properties": {"VpcId": {"Ref": "VpcId"}, "Tags": [{"Key": "Name", "Value": {"Fn::Sub": "${ProjectPrefix}-ecs-private-rt-b-${Environment}"}}, {"Key": "Project", "Value": "novamind-crp"}, {"Key": "Environment", "Value": "dev"}, {"Key": "ManagedBy", "Value": "CloudFormation"}]}
+    },
+    "PrivateSubnetARouteAssociation": {"Type": "AWS::EC2::SubnetRouteTableAssociation", "Properties": {"SubnetId": {"Ref": "PrivateSubnetA"}, "RouteTableId": {"Ref": "PrivateRouteTableA"}}},
+    "PrivateSubnetBRouteAssociation": {"Type": "AWS::EC2::SubnetRouteTableAssociation", "Properties": {"SubnetId": {"Ref": "PrivateSubnetB"}, "RouteTableId": {"Ref": "PrivateRouteTableB"}}},
+    "NatEip": {"Type": "AWS::EC2::EIP", "DependsOn": "PrivateSubnetARouteAssociation", "Properties": {"Domain": "vpc", "Tags": [{"Key": "Name", "Value": {"Fn::Sub": "${ProjectPrefix}-nat-${Environment}"}}, {"Key": "Project", "Value": "novamind-crp"}, {"Key": "Environment", "Value": "dev"}, {"Key": "ManagedBy", "Value": "CloudFormation"}]}},
+    "NatGateway": {"Type": "AWS::EC2::NatGateway", "Properties": {"AllocationId": {"Fn::GetAtt": ["NatEip", "AllocationId"]}, "SubnetId": {"Ref": "ExistingPublicSubnetId"}, "Tags": [{"Key": "Name", "Value": {"Fn::Sub": "${ProjectPrefix}-nat-${Environment}"}}, {"Key": "Project", "Value": "novamind-crp"}, {"Key": "Environment", "Value": "dev"}, {"Key": "ManagedBy", "Value": "CloudFormation"}]}},
+    "PrivateDefaultRouteA": {"Type": "AWS::EC2::Route", "Properties": {"RouteTableId": {"Ref": "PrivateRouteTableA"}, "DestinationCidrBlock": "0.0.0.0/0", "NatGatewayId": {"Ref": "NatGateway"}}},
+    "PrivateDefaultRouteB": {"Type": "AWS::EC2::Route", "Properties": {"RouteTableId": {"Ref": "PrivateRouteTableB"}, "DestinationCidrBlock": "0.0.0.0/0", "NatGatewayId": {"Ref": "NatGateway"}}},
+    "S3GatewayEndpoint": {"Type": "AWS::EC2::VPCEndpoint", "Properties": {"VpcId": {"Ref": "VpcId"}, "VpcEndpointType": "Gateway", "ServiceName": {"Fn::Sub": "com.amazonaws.${AWS::Region}.s3"}, "RouteTableIds": [{"Ref": "PrivateRouteTableA"}, {"Ref": "PrivateRouteTableB"}], "PolicyDocument": {"Version": "2012-10-17", "Statement": [{"Effect": "Allow", "Principal": "*", "Action": "s3:*", "Resource": "*"}]}, "Tags": [{"Key": "Name", "Value": {"Fn::Sub": "${ProjectPrefix}-s3-gateway-${Environment}"}}, {"Key": "Project", "Value": "novamind-crp"}, {"Key": "Environment", "Value": "dev"}, {"Key": "ManagedBy", "Value": "CloudFormation"}]}}
+  },
+  "Outputs": {
+    "PrivateSubnetIds": {"Value": {"Fn::Join": [",", [{"Ref": "PrivateSubnetA"}, {"Ref": "PrivateSubnetB"}]]}, "Export": {"Name": {"Fn::Sub": "${ProjectPrefix}-${Environment}-EcsPrivateSubnetIds"}}},
+    "PrivateRouteTableIds": {"Value": {"Fn::Join": [",", [{"Ref": "PrivateRouteTableA"}, {"Ref": "PrivateRouteTableB"}]]}, "Export": {"Name": {"Fn::Sub": "${ProjectPrefix}-${Environment}-EcsPrivateRouteTableIds"}}},
+    "NatGatewayId": {"Value": {"Ref": "NatGateway"}, "Export": {"Name": {"Fn::Sub": "${ProjectPrefix}-${Environment}-NatGatewayId"}}},
+    "S3GatewayEndpointId": {"Value": {"Ref": "S3GatewayEndpoint"}, "Export": {"Name": {"Fn::Sub": "${ProjectPrefix}-${Environment}-S3GatewayEndpointId"}}}
+  }
+}

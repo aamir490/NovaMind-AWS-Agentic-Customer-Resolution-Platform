@@ -1,0 +1,12 @@
+[
+  {"ParameterKey":"ProjectPrefix","ParameterValue":"novamind-crp"},
+  {"ParameterKey":"Environment","ParameterValue":"dev"},
+  {"ParameterKey":"ClusterName","ParameterValue":"novamind-crp-ecs-cluster-dev"},
+  {"ParameterKey":"ImageUri","ParameterValue":"357001292388.dkr.ecr.us-east-1.amazonaws.com/novamind-crp-backend-dev@sha256:f740cccc19d02688af249e896785be2c3e2c00ad8be2369d60391e3e82d06d3a"},
+  {"ParameterKey":"PrivateSubnetIds","ParameterValue":"subnet-0ef827a350fddfba6,subnet-05963f195c4bdbbe5"},
+  {"ParameterKey":"ApiSecurityGroupId","ParameterValue":"sg-0726ae466e736b514"},
+  {"ParameterKey":"ApiTargetGroupArn","ParameterValue":"arn:aws:elasticloadbalancing:us-east-1:357001292388:targetgroup/novamind-crp-api/3d59343ec0c4f535"},
+  {"ParameterKey":"PostgresApplicationSecretArn","ParameterValue":"arn:aws:secretsmanager:us-east-1:357001292388:secret:novamind-crp-postgres-app-dev-lvEjfq"},
+  {"ParameterKey":"CognitoConfigurationSecretArn","ParameterValue":"arn:aws:secretsmanager:us-east-1:357001292388:secret:novamind-crp-cognito-config-dev-pAbTvr"},
+  {"ParameterKey":"BedrockModelId","ParameterValue":"us.amazon.nova-lite-v1:0"}
+]

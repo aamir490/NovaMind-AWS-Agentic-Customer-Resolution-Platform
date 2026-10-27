@@ -1,0 +1,11 @@
+# Optional trusted-host credential file. Values never enter an image/build arg.
+services:
+  backend:
+    environment:
+      NOVAMIND_AUTH_FILE: /run/secrets/novamind_auth
+    secrets:
+      - novamind_auth
+
+secrets:
+  novamind_auth:
+    file: ${NOVAMIND_AUTH_SOURCE:?Set NOVAMIND_AUTH_SOURCE to an existing local credential file}

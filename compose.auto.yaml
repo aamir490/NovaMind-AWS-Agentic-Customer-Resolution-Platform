@@ -1,0 +1,9 @@
+# Explicit opt-in for newly-created AUTO investigations.
+# Combine with compose.auth.yaml, compose.persistence.yaml and a provider overlay.
+# The server verifies that NOVAMIND_DISPATCHER_USER_ID belongs to a configured
+# ADMIN or REVIEWER; this overlay does not select AUTO or replay existing jobs.
+services:
+  backend:
+    environment:
+      NOVAMIND_AUTOMATIC_DISPATCHER: "true"
+      NOVAMIND_DISPATCHER_USER_ID: ${NOVAMIND_DISPATCHER_USER_ID:?Set a canonical staff UUID for the AUTO dispatcher}

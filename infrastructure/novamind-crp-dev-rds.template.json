@@ -1,0 +1,98 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Opt-in novamind-crp dev encrypted private single-AZ PostgreSQL RDS instance. It creates only the DB subnet group, dedicated no-ingress RDS security group, and database; application ingress rules and secrets remain separate change sets.",
+  "Parameters": {
+    "ProjectPrefix": {"Type": "String", "Default": "novamind-crp", "AllowedValues": ["novamind-crp"]},
+    "Environment": {"Type": "String", "Default": "dev", "AllowedValues": ["dev"]},
+    "VpcId": {"Type": "AWS::EC2::VPC::Id", "Default": "vpc-0baf042257d729f7d", "AllowedValues": ["vpc-0baf042257d729f7d"]},
+    "PrivateSubnetAId": {"Type": "String", "Default": "subnet-0ef827a350fddfba6", "AllowedValues": ["subnet-0ef827a350fddfba6"], "AllowedPattern": "^subnet-[0-9a-f]+$", "Description": "Reviewed private candidate subnet in us-east-1a; verify VPC and AZ membership before deployment."},
+    "PrivateSubnetBId": {"Type": "String", "Default": "subnet-05963f195c4bdbbe5", "AllowedValues": ["subnet-05963f195c4bdbbe5"], "AllowedPattern": "^subnet-[0-9a-f]+$", "Description": "Reviewed private candidate subnet in us-east-1b; verify VPC and AZ membership before deployment."},
+    "SubnetIdentityConfirmed": {"Type": "String", "Default": "false", "AllowedValues": ["true", "false"], "Description": "Set true only after independently verifying both subnet IDs belong to the VPC and are private."},
+    "SubnetAvailabilityZonesConfirmed": {"Type": "String", "Default": "false", "AllowedValues": ["true", "false"], "Description": "Set true only after independently verifying the two subnets are in distinct Availability Zones in us-east-1."},
+    "DatabaseIdentityConfirmed": {"Type": "String", "Default": "false", "AllowedValues": ["true", "false"], "Description": "Set true only after approving database novamindcrp and the dev retention/deletion posture."}
+  },
+  "Rules": {
+    "RdsPreflightConfirmations": {
+      "Assertions": [{
+        "Assert": {"Fn::And": [
+          {"Fn::Equals": [{"Ref": "SubnetIdentityConfirmed"}, "true"]},
+          {"Fn::Equals": [{"Ref": "SubnetAvailabilityZonesConfirmed"}, "true"]},
+          {"Fn::Equals": [{"Ref": "DatabaseIdentityConfirmed"}, "true"]}
+        ]},
+        "AssertDescription": "RDS deployment requires independent confirmation of subnet identity/private routing, distinct AZs, and the approved dev database posture."
+      }]
+    }
+  },
+  "Resources": {
+    "RdsSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "NovaMind CRP dev PostgreSQL: ingress rules are added separately from approved API, workload, and bootstrap security groups.",
+        "VpcId": {"Ref": "VpcId"},
+        "SecurityGroupEgress": [],
+        "Tags": [
+          {"Key": "Name", "Value": {"Fn::Sub": "${ProjectPrefix}-rds-${Environment}"}},
+          {"Key": "Project", "Value": "novamind-crp"},
+          {"Key": "Environment", "Value": "dev"},
+          {"Key": "ManagedBy", "Value": "CloudFormation"}
+        ]
+      }
+    },
+    "RdsDbSubnetGroup": {
+      "Type": "AWS::RDS::DBSubnetGroup",
+      "Properties": {
+        "DBSubnetGroupDescription": "NovaMind CRP dev private PostgreSQL subnets in two Availability Zones.",
+        "DBSubnetGroupName": {"Fn::Sub": "${ProjectPrefix}-rds-subnets-${Environment}"},
+        "SubnetIds": [{"Ref": "PrivateSubnetAId"}, {"Ref": "PrivateSubnetBId"}],
+        "Tags": [
+          {"Key": "Name", "Value": {"Fn::Sub": "${ProjectPrefix}-rds-subnets-${Environment}"}},
+          {"Key": "Project", "Value": "novamind-crp"},
+          {"Key": "Environment", "Value": "dev"},
+          {"Key": "ManagedBy", "Value": "CloudFormation"}
+        ]
+      }
+    },
+    "RdsPostgres": {
+      "Type": "AWS::RDS::DBInstance",
+      "DeletionPolicy": "Snapshot",
+      "UpdateReplacePolicy": "Snapshot",
+      "Properties": {
+        "DBInstanceIdentifier": {"Fn::Sub": "${ProjectPrefix}-postgres-${Environment}"},
+        "DBName": "novamindcrp",
+        "Engine": "postgres",
+        "EngineVersion": "17.11",
+        "DBInstanceClass": "db.t4g.micro",
+        "AllocatedStorage": "20",
+        "StorageType": "gp3",
+        "StorageEncrypted": true,
+        "ManageMasterUserPassword": true,
+        "MasterUsername": "postgres",
+        "Port": 5432,
+        "PubliclyAccessible": false,
+        "MultiAZ": false,
+        "DBSubnetGroupName": {"Ref": "RdsDbSubnetGroup"},
+        "VPCSecurityGroups": [{"Ref": "RdsSecurityGroup"}],
+        "BackupRetentionPeriod": 1,
+        "CopyTagsToSnapshot": true,
+        "DeleteAutomatedBackups": true,
+        "DeletionProtection": false,
+        "AutoMinorVersionUpgrade": true,
+        "EnablePerformanceInsights": false,
+        "Tags": [
+          {"Key": "Name", "Value": {"Fn::Sub": "${ProjectPrefix}-postgres-${Environment}"}},
+          {"Key": "Project", "Value": "novamind-crp"},
+          {"Key": "Environment", "Value": "dev"},
+          {"Key": "ManagedBy", "Value": "CloudFormation"}
+        ]
+      }
+    }
+  },
+  "Outputs": {
+    "RdsInstanceIdentifier": {"Value": {"Ref": "RdsPostgres"}, "Export": {"Name": {"Fn::Sub": "${ProjectPrefix}-${Environment}-RdsInstanceIdentifier"}}},
+    "RdsEndpointAddress": {"Value": {"Fn::GetAtt": ["RdsPostgres", "Endpoint.Address"]}, "Export": {"Name": {"Fn::Sub": "${ProjectPrefix}-${Environment}-RdsEndpointAddress"}}},
+    "RdsEndpointPort": {"Value": {"Fn::GetAtt": ["RdsPostgres", "Endpoint.Port"]}, "Export": {"Name": {"Fn::Sub": "${ProjectPrefix}-${Environment}-RdsEndpointPort"}}},
+    "RdsMasterSecretArn": {"Value": {"Fn::GetAtt": ["RdsPostgres", "MasterUserSecret.SecretArn"]}, "Export": {"Name": {"Fn::Sub": "${ProjectPrefix}-${Environment}-RdsMasterSecretArn"}}},
+    "RdsSecurityGroupId": {"Value": {"Ref": "RdsSecurityGroup"}, "Export": {"Name": {"Fn::Sub": "${ProjectPrefix}-${Environment}-RdsSecurityGroupId"}}},
+    "RdsDbSubnetGroupName": {"Value": {"Ref": "RdsDbSubnetGroup"}, "Export": {"Name": {"Fn::Sub": "${ProjectPrefix}-${Environment}-RdsDbSubnetGroupName"}}}
+  }
+}

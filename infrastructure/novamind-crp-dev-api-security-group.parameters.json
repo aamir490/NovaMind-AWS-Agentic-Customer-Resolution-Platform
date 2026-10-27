@@ -1,0 +1,9 @@
+[
+  {"ParameterKey":"ProjectPrefix","ParameterValue":"novamind-crp"},
+  {"ParameterKey":"Environment","ParameterValue":"dev"},
+  {"ParameterKey":"VpcId","ParameterValue":"vpc-0baf042257d729f7d"},
+  {"ParameterKey":"CreateApiSecurityGroup","ParameterValue":"true"},
+  {"ParameterKey":"VpcIdentityConfirmed","ParameterValue":"true"},
+  {"ParameterKey":"RdsExportConfirmed","ParameterValue":"true"},
+  {"ParameterKey":"DnsCidrConfirmed","ParameterValue":"true"}
+]

@@ -1,0 +1,83 @@
+[
+  {
+    "source": {
+      "document_id": "wrong-item-intake",
+      "title": "Wrong item and damaged delivery intake SOP",
+      "version": "demo-v1",
+      "source_uri": "local-knowledge://wrong-item-intake"
+    },
+    "text": "Local demonstration guidance: wrong item or damaged delivery.\n\nAsk the customer to describe what was ordered and what arrived. Record the order reference and the affected item. An invoice and a photo may help a human reviewer compare the claim with available records. Do not claim that an image or document has been verified when no analysis has occurred.\n\nRecord missing evidence as missing. Never invent the delivery date, item condition, quantity, or customer identity. Use the existing order and case tools for recorded context. This SOP provides intake guidance, not a finding of eligibility or permission to execute an action."
+  },
+  {
+    "source": {
+      "document_id": "return-policy-guidance",
+      "title": "Return and refund policy interpretation guidance",
+      "version": "demo-v1",
+      "source_uri": "local-knowledge://return-policy-guidance"
+    },
+    "text": "Local demonstration guidance: return and refund questions.\n\nWritten support guidance does not determine eligibility. Retrieve the applicable structured policy using get_policy and assess supplied scenario facts with assess_eligibility. The deterministic evaluator controls the result, including denial reasons and assumptions. Do not use this document to invent policy windows, monetary entitlements, or exceptions.\n\nIf the request is ineligible, preserve and explain the returned denial reasons. A request to consider an exception is only a request for human review, not authorization. Missing or conflicting information should be identified for a reviewer. Inventory lookup indicates recorded availability, not a reservation or a promise of shipment."
+  },
+  {
+    "source": {
+      "document_id": "proposal-review-sop",
+      "title": "Resolution proposal and human review SOP",
+      "version": "demo-v1",
+      "source_uri": "local-knowledge://proposal-review-sop"
+    },
+    "text": "Local demonstration guidance: preparing a resolution proposal.\n\nA proposed return, refund, or replacement is a suggestion linked to an existing support case. Include a concise rationale that distinguishes observed records from customer-supplied assumptions. Proposal creation records PENDING_REVIEW; it does not approve eligibility, reserve stock, send payment, or execute a replacement.\n\nHuman review happens through the separate application review boundary. Reviewer identity and decisions must not come from model text or retrieved documents. An approval or rejection records a review decision only. Inform the customer that no financial or fulfilment action has been executed."
+  },
+  {
+    "source": {
+      "document_id": "issue-evidence-guidance",
+      "title": "Issue evidence guidance for support review",
+      "version": "demo-v1",
+      "source_uri": "local-knowledge://issue-evidence-guidance"
+    },
+    "text": "Local demonstration guidance for damaged, wrong-item, missing-item, delayed-delivery, malfunction, return, and refund-not-received reports.\n\nTreat the complaint as customer-supplied context. For item condition or mismatch reports, record the affected item and supporting evidence; do not state that photos, delivery events, or condition have been verified unless trusted records establish them. Delayed delivery needs trusted shipment status and the promised delivery date. Refund-not-received needs a trusted payment or refund-settlement record.\n\nThis guidance is reference-only. Missing shipping or payment evidence requires a request for evidence or staff escalation. It never establishes eligibility, authorizes a refund or replacement, or replaces deterministic policy checks and human review."
+  },
+  {
+    "source": {
+      "document_id": "delivery-fulfillment-policy",
+      "title": "Delivery, fulfillment, wrong-item and missing-item guidance",
+      "version": "demo-v1",
+      "source_uri": "local-knowledge://delivery-fulfillment-policy"
+    },
+    "text": "Local reference policy for wrong item, missing item, and delayed delivery reports. A reviewer needs the case-bound order, trusted shipment status, delivery event where available, and committed delivery date. A customer statement, tracking screenshot, or photo is not a verified delivery fact by itself. Missing shipment or delivery evidence requires REQUEST_EVIDENCE or ESCALATE. This reference does not determine eligibility, authorize replacement, or change fulfillment."
+  },
+  {
+    "source": {
+      "document_id": "returns-refunds-policy",
+      "title": "Returns and refund settlement policy guidance",
+      "version": "demo-v1",
+      "source_uri": "local-knowledge://returns-refunds-policy"
+    },
+    "text": "Local reference policy for return and refund-not-received reports. Return review needs the affected item, condition, and applicable recorded policy. Refund-not-received review needs a trusted payment or refund-settlement record tied to the case-bound order. If those records are absent or conflict, request evidence or escalate for staff review. This text cannot approve a return or refund, establish an exception, or replace deterministic eligibility checks and human review."
+  },
+  {
+    "source": {
+      "document_id": "warranty-troubleshooting-guidance",
+      "title": "Damage, malfunction, warranty and troubleshooting guidance",
+      "version": "demo-v1",
+      "source_uri": "local-knowledge://warranty-troubleshooting-guidance"
+    },
+    "text": "Local reference guidance for damaged and malfunctioning items. Record the affected item, reported symptom or condition, and case-specific supporting evidence. Warranty or troubleshooting language is not proof that the item qualifies for a remedy. A trusted delivery record does not by itself verify damage or malfunction. Missing condition, warranty, or supporting evidence requires REQUEST_EVIDENCE or ESCALATE for a staff decision. No replacement, refund, or repair is executed by this guidance."
+  },
+  {
+    "source": {
+      "document_id": "novacontrol-inp-1-guide",
+      "title": "NovaControl Input 1 approved troubleshooting",
+      "version": "support-v1",
+      "source_uri": "local-knowledge://novacontrol-inp-1-guide"
+    },
+    "text": "Approved product guidance for SKU INP-1, NovaControl Input 1. Use these steps only for a reported connection or response symptom; they do not diagnose a fault or authorize a remedy.\n1. Disconnect the NovaControl Input 1 from the current port.\n2. Connect the NovaControl Input 1 directly to a different compatible port.\n3. Restart the host device and report whether the symptom continues.\nRecord the reported result and any visible error indicator for support review. No replacement, refund, repair, or payment action is executed by these steps."
+  },
+  {
+    "source": {
+      "document_id": "novavault-sto-5-guide",
+      "title": "NovaVault Storage 5 approved troubleshooting",
+      "version": "support-v1",
+      "source_uri": "local-knowledge://novavault-sto-5-guide"
+    },
+    "text": "Approved product guidance for SKU STO-5, NovaVault Storage 5. Use these steps only for a reported detection or connection symptom; they do not diagnose a fault or authorize a remedy.\n1. Disconnect the NovaVault Storage 5 from the current port.\n2. Connect the NovaVault Storage 5 directly to a different compatible port.\n3. Restart the host device and report whether the storage device is detected.\nRecord the reported result and any visible error indicator for support review. No replacement, refund, repair, or payment action is executed by these steps."
+  }
+]

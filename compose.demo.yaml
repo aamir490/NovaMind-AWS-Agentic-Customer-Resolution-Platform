@@ -1,0 +1,6 @@
+# Explicit synthetic data for the local-only human-review demonstration.
+# This requires compose.offline.yaml and is rejected by the backend otherwise.
+services:
+  backend:
+    environment:
+      NOVAMIND_OFFLINE_DEMO_DATA: "true"

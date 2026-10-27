@@ -1,0 +1,42 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Opt-in novamind-crp dev ECS Fargate cluster with CloudWatch container insights. It creates no services, task definitions, ECR repositories, networking, or secrets.",
+  "Parameters": {
+    "ProjectPrefix": {"Type": "String", "Default": "novamind-crp", "AllowedValues": ["novamind-crp"]},
+    "Environment": {"Type": "String", "Default": "dev", "AllowedValues": ["dev"]},
+    "CreateEcsCluster": {"Type": "String", "Default": "false", "AllowedValues": ["true", "false"]},
+    "ClusterName": {"Type": "String", "Default": "novamind-crp-ecs-cluster-dev", "AllowedPattern": "^novamind-crp-[a-z0-9-]+-dev$"}
+  },
+  "Conditions": {
+    "CreateEcsClusterCondition": {"Fn::Equals": [{"Ref": "CreateEcsCluster"}, "true"]}
+  },
+  "Resources": {
+    "EcsCluster": {
+      "Condition": "CreateEcsClusterCondition",
+      "Type": "AWS::ECS::Cluster",
+      "DeletionPolicy": "Retain",
+      "UpdateReplacePolicy": "Retain",
+      "Properties": {
+        "ClusterName": {"Ref": "ClusterName"},
+        "ClusterSettings": [{"Name": "containerInsights", "Value": "enabled"}],
+        "Tags": [
+          {"Key": "Project", "Value": "novamind-crp"},
+          {"Key": "Environment", "Value": "dev"},
+          {"Key": "ManagedBy", "Value": "CloudFormation"}
+        ]
+      }
+    }
+  },
+  "Outputs": {
+    "EcsClusterArn": {
+      "Condition": "CreateEcsClusterCondition",
+      "Value": {"Fn::GetAtt": ["EcsCluster", "Arn"]},
+      "Export": {"Name": {"Fn::Sub": "${ProjectPrefix}-${Environment}-EcsClusterArn"}}
+    },
+    "EcsClusterName": {
+      "Condition": "CreateEcsClusterCondition",
+      "Value": {"Ref": "EcsCluster"},
+      "Export": {"Name": {"Fn::Sub": "${ProjectPrefix}-${Environment}-EcsClusterName"}}
+    }
+  }
+}

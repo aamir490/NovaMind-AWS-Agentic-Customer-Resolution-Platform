@@ -1,0 +1,15 @@
+# Opt-in durable backend state. Combine with compose.yaml; the base stack stays
+# stateless. Docker copies the pre-owned image directory into an empty volume.
+services:
+  backend:
+    environment:
+      NOVAMIND_SQLITE_PATH: /srv/state/novamind/novamind.sqlite
+    volumes:
+      - type: volume
+        source: novamind_sqlite
+        target: /srv/state
+
+volumes:
+  novamind_sqlite:
+    # Set NOVAMIND_SQLITE_VOLUME only to use an explicitly managed volume name.
+    name: ${NOVAMIND_SQLITE_VOLUME:-novamind_sqlite}

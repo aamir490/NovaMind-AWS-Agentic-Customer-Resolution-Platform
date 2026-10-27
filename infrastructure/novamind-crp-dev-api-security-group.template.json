@@ -1,0 +1,55 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Opt-in novamind-crp dev API security group only. It creates no ingress, RDS ingress, load balancer, service, or secret.",
+  "Parameters": {
+    "ProjectPrefix": {"Type": "String", "Default": "novamind-crp", "AllowedValues": ["novamind-crp"]},
+    "Environment": {"Type": "String", "Default": "dev", "AllowedValues": ["dev"]},
+    "VpcId": {"Type": "AWS::EC2::VPC::Id", "Default": "vpc-0baf042257d729f7d", "AllowedValues": ["vpc-0baf042257d729f7d"]},
+    "CreateApiSecurityGroup": {"Type": "String", "Default": "false", "AllowedValues": ["true", "false"], "Description": "Explicit opt-in to create the dedicated API security group."},
+    "VpcIdentityConfirmed": {"Type": "String", "Default": "false", "AllowedValues": ["true", "false"], "Description": "Set true only after independently verifying the VPC identity and API subnet placement."},
+    "RdsExportConfirmed": {"Type": "String", "Default": "false", "AllowedValues": ["true", "false"], "Description": "Set true only after verifying the RDS stack exports novamind-crp-dev-RdsSecurityGroupId in this VPC."},
+    "DnsCidrConfirmed": {"Type": "String", "Default": "false", "AllowedValues": ["true", "false"], "Description": "Set true only after approving VPC DNS egress to 172.31.0.0/16."}
+  },
+  "Rules": {
+    "ApiSecurityGroupPreflight": {
+      "Assertions": [{
+        "Assert": {"Fn::And": [
+          {"Fn::Equals": [{"Ref": "CreateApiSecurityGroup"}, "true"]},
+          {"Fn::Equals": [{"Ref": "VpcId"}, "vpc-0baf042257d729f7d"]},
+          {"Fn::Equals": [{"Ref": "VpcIdentityConfirmed"}, "true"]},
+          {"Fn::Equals": [{"Ref": "RdsExportConfirmed"}, "true"]},
+          {"Fn::Equals": [{"Ref": "DnsCidrConfirmed"}, "true"]}
+        ]},
+        "AssertDescription": "Creating the API security group requires explicit opt-in and independent confirmation of VPC, RDS export, and DNS CIDR scope."
+      }]
+    }
+  },
+  "Conditions": {
+    "CreateApiSecurityGroupCondition": {"Fn::Equals": [{"Ref": "CreateApiSecurityGroup"}, "true"]}
+  },
+  "Resources": {
+    "ApiSecurityGroup": {
+      "Condition": "CreateApiSecurityGroupCondition",
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "NovaMind CRP dev API: no ingress; PostgreSQL to the imported RDS security group and VPC DNS only.",
+        "VpcId": {"Ref": "VpcId"},
+        "SecurityGroupEgress": [
+          {"IpProtocol": "tcp", "FromPort": 5432, "ToPort": 5432, "DestinationSecurityGroupId": {"Fn::ImportValue": {"Fn::Sub": "${ProjectPrefix}-${Environment}-RdsSecurityGroupId"}}, "Description": "API to private PostgreSQL"},
+          {"IpProtocol": "udp", "FromPort": 53, "ToPort": 53, "CidrIp": "172.31.0.0/16", "Description": "VPC DNS UDP"},
+          {"IpProtocol": "tcp", "FromPort": 53, "ToPort": 53, "CidrIp": "172.31.0.0/16", "Description": "VPC DNS TCP"},
+          {"IpProtocol": "tcp", "FromPort": 443, "ToPort": 443, "CidrIp": "0.0.0.0/0", "Description": "Cognito JWKS and AWS API HTTPS through the private-subnet NAT gateway"}
+        ],
+        "Tags": [
+          {"Key": "Name", "Value": {"Fn::Sub": "${ProjectPrefix}-api-sg-${Environment}"}},
+          {"Key": "Project", "Value": "novamind-crp"},
+          {"Key": "Environment", "Value": "dev"},
+          {"Key": "ManagedBy", "Value": "CloudFormation"}
+        ]
+      }
+    }
+  },
+  "Outputs": {
+    "ApiSecurityGroupId": {"Condition": "CreateApiSecurityGroupCondition", "Value": {"Ref": "ApiSecurityGroup"}, "Export": {"Name": {"Fn::Sub": "${ProjectPrefix}-${Environment}-ApiSecurityGroupId"}}}
+  }
+}

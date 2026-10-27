@@ -1,0 +1,9 @@
+# Allowlist the backend image context; exclude venvs, secrets, stores, tests, caches.
+**
+!requirements.txt
+!app/
+!app/*.py
+!knowledge/
+!knowledge/support.json
+!container/
+!container/*.py

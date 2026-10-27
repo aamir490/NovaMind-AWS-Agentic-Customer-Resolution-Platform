@@ -1,0 +1,13 @@
+# Build source only. No host node_modules/dist, environment files, or secrets.
+**
+!package.json
+!package-lock.json
+!index.html
+!vite.config.js
+!nginx.conf
+!src/
+!src/*.js
+!src/*.jsx
+!src/*.css
+!public/
+!public/**

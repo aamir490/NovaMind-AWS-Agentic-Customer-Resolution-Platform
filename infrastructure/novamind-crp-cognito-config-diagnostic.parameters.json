@@ -1,0 +1,8 @@
+[
+  {"ParameterKey":"ProjectPrefix","ParameterValue":"novamind-crp"},
+  {"ParameterKey":"Environment","ParameterValue":"dev"},
+  {"ParameterKey":"ImageUri","ParameterValue":"357001292388.dkr.ecr.us-east-1.amazonaws.com/novamind-crp-backend-dev@sha256:f740cccc19d02688af249e896785be2c3e2c00ad8be2369d60391e3e82d06d3a"},
+  {"ParameterKey":"CognitoConfigurationSecretArn","ParameterValue":"arn:aws:secretsmanager:us-east-1:357001292388:secret:novamind-crp-cognito-config-dev-pAbTvr"},
+  {"ParameterKey":"ExecutionRoleName","ParameterValue":"novamind-crp-cognito-config-diagnostic-execution-dev"},
+  {"ParameterKey":"LogRetentionDays","ParameterValue":"1"}
+]

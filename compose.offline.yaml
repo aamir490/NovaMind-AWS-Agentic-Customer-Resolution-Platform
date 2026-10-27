@@ -1,0 +1,7 @@
+# Explicitly opt-in deterministic provider for disposable local verification.
+# The backend remains only on compose.yaml's internal application network.
+services:
+  backend:
+    environment:
+      NOVAMIND_LLM_PROVIDER: local_scripted
+      NOVAMIND_OFFLINE_TESTING: "true"

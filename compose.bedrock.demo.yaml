@@ -1,0 +1,6 @@
+# Explicit synthetic data for a Bedrock-mode HITL demonstration.
+# Requires compose.bedrock.yaml; contains no AWS credentials or credential mounts.
+services:
+  backend:
+    environment:
+      NOVAMIND_BEDROCK_DEMO_DATA: "true"

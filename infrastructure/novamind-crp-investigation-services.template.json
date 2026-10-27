@@ -1,0 +1,103 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "novamind-crp dev ECS services for the Strands API, transactional-outbox publisher, and SQS Strands worker. References the 6F messaging foundation and existing VPC/RDS resources; never creates legacy runtime resources or secrets.",
+  "Parameters": {
+    "ProjectPrefix": {"Type": "String", "Default": "novamind-crp", "AllowedValues": ["novamind-crp"]},
+    "Environment": {"Type": "String", "Default": "dev", "AllowedValues": ["dev"]},
+    "ClusterName": {"Type": "String", "Default": "novamind-crp-ecs-cluster-dev", "AllowedPattern": "^novamind-crp-[a-z0-9-]+$"},
+    "ImageUri": {"Type": "String", "Description": "Immutable ECR image URI or digest for the backend image.", "AllowedPattern": "^[0-9]{12}\\.dkr\\.ecr\\.[a-z0-9-]+\\.amazonaws\\.com/[A-Za-z0-9._/-]+(?:@sha256:[a-f0-9]{64}|:[A-Za-z0-9._-]+)$"},
+    "PrivateSubnetIds": {"Type": "List<AWS::EC2::Subnet::Id>"},
+    "ApiSecurityGroupId": {"Type": "AWS::EC2::SecurityGroup::Id"},
+    "ApiTargetGroupArn": {"Type": "String", "AllowedPattern": "^arn:aws(?:-[a-z-]+)?:elasticloadbalancing:[a-z0-9-]+:[0-9]{12}:targetgroup/[A-Za-z0-9._-]+/[A-Za-z0-9]+$"},
+    "PostgresApplicationSecretArn": {"Type": "String", "Description": "Secrets Manager application connection secret created for this project; not the RDS master secret.", "AllowedPattern": "^arn:aws(?:-[a-z-]+)?:secretsmanager:[a-z0-9-]+:[0-9]{12}:secret:novamind-crp-[A-Za-z0-9/_+=.@!-]+$"},
+    "CognitoConfigurationSecretArn": {"Type": "String", "Description": "JSON secret named in the novamind-crp namespace with issuer, client_id, customer_group, admin_group, and customer_bindings keys.", "AllowedPattern": "^arn:aws(?:-[a-z-]+)?:secretsmanager:[a-z0-9-]+:[0-9]{12}:secret:novamind-crp-[A-Za-z0-9/_+=.@!-]+$"},
+    "BedrockModelId": {"Type": "String", "Default": "amazon.nova-lite-v1:0", "AllowedPattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$"},
+    "ApiDesiredCount": {"Type": "Number", "Default": 2, "MinValue": 1, "MaxValue": 4},
+    "PublisherDesiredCount": {"Type": "Number", "Default": 1, "MinValue": 1, "MaxValue": 2},
+    "WorkerDesiredCount": {"Type": "Number", "Default": 2, "MinValue": 1, "MaxValue": 4},
+    "ApiCpu": {"Type": "String", "Default": "512", "AllowedValues": ["256", "512", "1024"]},
+    "ApiMemory": {"Type": "String", "Default": "1024", "AllowedValues": ["512", "1024", "2048"]},
+    "WorkerCpu": {"Type": "String", "Default": "1024", "AllowedValues": ["512", "1024", "2048"]},
+    "WorkerMemory": {"Type": "String", "Default": "2048", "AllowedValues": ["1024", "2048", "4096"]}
+  },
+  "Resources": {
+    "ApiExecutionRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "RoleName": {"Fn::Sub": "${ProjectPrefix}-api-execution-${Environment}"},
+        "AssumeRolePolicyDocument": {"Version": "2012-10-17", "Statement": [{"Effect": "Allow", "Principal": {"Service": "ecs-tasks.amazonaws.com"}, "Action": "sts:AssumeRole"}]},
+        "Policies": [{"PolicyName": {"Fn::Sub": "${ProjectPrefix}-api-execution-${Environment}"}, "PolicyDocument": {"Version": "2012-10-17", "Statement": [
+          {"Sid": "PullBackendImage", "Effect": "Allow", "Action": "ecr:GetAuthorizationToken", "Resource": "*"},
+          {"Sid": "ReadBackendImage", "Effect": "Allow", "Action": ["ecr:BatchCheckLayerAvailability", "ecr:GetDownloadUrlForLayer", "ecr:BatchGetImage"], "Resource": {"Fn::Sub": "arn:${AWS::Partition}:ecr:${AWS::Region}:${AWS::AccountId}:repository/novamind-crp-backend-dev"}},
+          {"Sid": "WriteApiLogs", "Effect": "Allow", "Action": ["logs:CreateLogStream", "logs:PutLogEvents"], "Resource": {"Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/ecs/${ProjectPrefix}/api/${Environment}:*"}},
+          {"Sid": "ReadApiSecrets", "Effect": "Allow", "Action": ["secretsmanager:GetSecretValue"], "Resource": [{"Ref": "PostgresApplicationSecretArn"}, {"Ref": "CognitoConfigurationSecretArn"}]}
+        ]}}],
+        "Tags": [{"Key": "Project", "Value": "novamind-crp"}, {"Key": "Environment", "Value": "dev"}, {"Key": "ManagedBy", "Value": "CloudFormation"}]
+      }
+    },
+    "PublisherExecutionRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "RoleName": {"Fn::Sub": "${ProjectPrefix}-publisher-execution-${Environment}"},
+        "AssumeRolePolicyDocument": {"Version": "2012-10-17", "Statement": [{"Effect": "Allow", "Principal": {"Service": "ecs-tasks.amazonaws.com"}, "Action": "sts:AssumeRole"}]},
+        "Policies": [{"PolicyName": {"Fn::Sub": "${ProjectPrefix}-publisher-execution-${Environment}"}, "PolicyDocument": {"Version": "2012-10-17", "Statement": [
+          {"Sid": "PullBackendImage", "Effect": "Allow", "Action": "ecr:GetAuthorizationToken", "Resource": "*"},
+          {"Sid": "ReadBackendImage", "Effect": "Allow", "Action": ["ecr:BatchCheckLayerAvailability", "ecr:GetDownloadUrlForLayer", "ecr:BatchGetImage"], "Resource": {"Fn::Sub": "arn:${AWS::Partition}:ecr:${AWS::Region}:${AWS::AccountId}:repository/novamind-crp-backend-dev"}},
+          {"Sid": "WritePublisherLogs", "Effect": "Allow", "Action": ["logs:CreateLogStream", "logs:PutLogEvents"], "Resource": {"Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/ecs/${ProjectPrefix}/publisher/${Environment}:*"}},
+          {"Sid": "ReadPublisherSecret", "Effect": "Allow", "Action": ["secretsmanager:GetSecretValue"], "Resource": [{"Ref": "PostgresApplicationSecretArn"}]}
+        ]}}],
+        "Tags": [{"Key": "Project", "Value": "novamind-crp"}, {"Key": "Environment", "Value": "dev"}, {"Key": "ManagedBy", "Value": "CloudFormation"}]
+      }
+    },
+    "WorkerExecutionRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "RoleName": {"Fn::Sub": "${ProjectPrefix}-worker-execution-${Environment}"},
+        "AssumeRolePolicyDocument": {"Version": "2012-10-17", "Statement": [{"Effect": "Allow", "Principal": {"Service": "ecs-tasks.amazonaws.com"}, "Action": "sts:AssumeRole"}]},
+        "Policies": [{"PolicyName": {"Fn::Sub": "${ProjectPrefix}-worker-execution-${Environment}"}, "PolicyDocument": {"Version": "2012-10-17", "Statement": [
+          {"Sid": "PullBackendImage", "Effect": "Allow", "Action": "ecr:GetAuthorizationToken", "Resource": "*"},
+          {"Sid": "ReadBackendImage", "Effect": "Allow", "Action": ["ecr:BatchCheckLayerAvailability", "ecr:GetDownloadUrlForLayer", "ecr:BatchGetImage"], "Resource": {"Fn::Sub": "arn:${AWS::Partition}:ecr:${AWS::Region}:${AWS::AccountId}:repository/novamind-crp-backend-dev"}},
+          {"Sid": "WriteWorkerLogs", "Effect": "Allow", "Action": ["logs:CreateLogStream", "logs:PutLogEvents"], "Resource": {"Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/ecs/${ProjectPrefix}/strands-worker/${Environment}:*"}},
+          {"Sid": "ReadWorkerSecret", "Effect": "Allow", "Action": ["secretsmanager:GetSecretValue"], "Resource": [{"Ref": "PostgresApplicationSecretArn"}]}
+        ]}}],
+        "Tags": [{"Key": "Project", "Value": "novamind-crp"}, {"Key": "Environment", "Value": "dev"}, {"Key": "ManagedBy", "Value": "CloudFormation"}]
+      }
+    },
+    "ApiTaskDefinition": {
+      "Type": "AWS::ECS::TaskDefinition",
+      "Properties": {
+        "Family": {"Fn::Sub": "${ProjectPrefix}-api-${Environment}"}, "RequiresCompatibilities": ["FARGATE"], "NetworkMode": "awsvpc", "Cpu": {"Ref": "ApiCpu"}, "Memory": {"Ref": "ApiMemory"}, "ExecutionRoleArn": {"Fn::GetAtt": ["ApiExecutionRole", "Arn"]}, "TaskRoleArn": {"Fn::ImportValue": {"Fn::Sub": "${ProjectPrefix}-${Environment}-ApiTaskRoleArn"}}, "RuntimePlatform": {"CpuArchitecture": "X86_64", "OperatingSystemFamily": "LINUX"},
+        "ContainerDefinitions": [{"Name": "backend", "Image": {"Ref": "ImageUri"}, "Essential": true, "ReadonlyRootFilesystem": true, "StopTimeout": 120, "PortMappings": [{"ContainerPort": 8000, "Protocol": "tcp"}], "Command": ["python", "-m", "backend.container.ecs_entrypoint"], "Environment": [
+          {"Name": "NOVAMIND_PROCESS_ROLE", "Value": "api"}, {"Name": "NOVAMIND_AUTH_MODE", "Value": "cognito"}, {"Name": "NOVAMIND_LLM_PROVIDER", "Value": "bedrock"}, {"Name": "NOVAMIND_AGENT_ENGINE", "Value": "strands"}, {"Name": "AWS_REGION", "Value": {"Ref": "AWS::Region"}}, {"Name": "BEDROCK_MODEL_ID", "Value": {"Ref": "BedrockModelId"}}, {"Name": "NOVAMIND_RDS_CA_BUNDLE_PATH", "Value": "/etc/novamind/rds-ca-bundle.pem"}
+        ], "Secrets": [
+          {"Name": "NOVAMIND_POSTGRES_SECRET", "ValueFrom": {"Ref": "PostgresApplicationSecretArn"}}, {"Name": "NOVAMIND_COGNITO_ISSUER", "ValueFrom": {"Fn::Sub": "${CognitoConfigurationSecretArn}:issuer::"}}, {"Name": "NOVAMIND_COGNITO_CLIENT_ID", "ValueFrom": {"Fn::Sub": "${CognitoConfigurationSecretArn}:client_id::"}}, {"Name": "NOVAMIND_COGNITO_CUSTOMER_GROUP", "ValueFrom": {"Fn::Sub": "${CognitoConfigurationSecretArn}:customer_group::"}}, {"Name": "NOVAMIND_COGNITO_ADMIN_GROUP", "ValueFrom": {"Fn::Sub": "${CognitoConfigurationSecretArn}:admin_group::"}}, {"Name": "NOVAMIND_COGNITO_CUSTOMER_BINDINGS", "ValueFrom": {"Fn::Sub": "${CognitoConfigurationSecretArn}:customer_bindings::"}}
+        ], "LogConfiguration": {"LogDriver": "awslogs", "Options": {"awslogs-group": {"Fn::ImportValue": {"Fn::Sub": "${ProjectPrefix}-${Environment}-ApiLogGroupName"}}, "awslogs-region": {"Ref": "AWS::Region"}, "awslogs-stream-prefix": "api"}}, "HealthCheck": {"Command": ["CMD-SHELL", "python -m backend.container.healthcheck"], "Interval": 30, "Timeout": 5, "Retries": 3, "StartPeriod": 45}}]
+      }
+    },
+    "PublisherTaskDefinition": {
+      "Type": "AWS::ECS::TaskDefinition",
+      "Properties": {
+        "Family": {"Fn::Sub": "${ProjectPrefix}-publisher-${Environment}"}, "RequiresCompatibilities": ["FARGATE"], "NetworkMode": "awsvpc", "Cpu": "256", "Memory": "512", "ExecutionRoleArn": {"Fn::GetAtt": ["PublisherExecutionRole", "Arn"]}, "TaskRoleArn": {"Fn::ImportValue": {"Fn::Sub": "${ProjectPrefix}-${Environment}-PublisherTaskRoleArn"}}, "RuntimePlatform": {"CpuArchitecture": "X86_64", "OperatingSystemFamily": "LINUX"},
+        "ContainerDefinitions": [{"Name": "publisher", "Image": {"Ref": "ImageUri"}, "Essential": true, "ReadonlyRootFilesystem": true, "StopTimeout": 120, "Command": ["python", "-m", "backend.container.ecs_entrypoint"], "Environment": [{"Name": "NOVAMIND_PROCESS_ROLE", "Value": "publisher"}, {"Name": "NOVAMIND_LLM_PROVIDER", "Value": "bedrock"}, {"Name": "NOVAMIND_AGENT_ENGINE", "Value": "strands"}, {"Name": "BEDROCK_MODEL_ID", "Value": {"Ref": "BedrockModelId"}}, {"Name": "AWS_REGION", "Value": {"Ref": "AWS::Region"}}, {"Name": "NOVAMIND_INVESTIGATION_QUEUE_URL", "Value": {"Fn::ImportValue": {"Fn::Sub": "${ProjectPrefix}-${Environment}-InvestigationQueueUrl"}}}, {"Name": "NOVAMIND_RDS_CA_BUNDLE_PATH", "Value": "/etc/novamind/rds-ca-bundle.pem"}], "Secrets": [{"Name": "NOVAMIND_POSTGRES_SECRET", "ValueFrom": {"Ref": "PostgresApplicationSecretArn"}}], "LogConfiguration": {"LogDriver": "awslogs", "Options": {"awslogs-group": {"Fn::ImportValue": {"Fn::Sub": "${ProjectPrefix}-${Environment}-PublisherLogGroupName"}}, "awslogs-region": {"Ref": "AWS::Region"}, "awslogs-stream-prefix": "publisher"}}}]
+      }
+    },
+    "WorkerTaskDefinition": {
+      "Type": "AWS::ECS::TaskDefinition",
+      "Properties": {
+        "Family": {"Fn::Sub": "${ProjectPrefix}-strands-worker-${Environment}"}, "RequiresCompatibilities": ["FARGATE"], "NetworkMode": "awsvpc", "Cpu": {"Ref": "WorkerCpu"}, "Memory": {"Ref": "WorkerMemory"}, "ExecutionRoleArn": {"Fn::GetAtt": ["WorkerExecutionRole", "Arn"]}, "TaskRoleArn": {"Fn::ImportValue": {"Fn::Sub": "${ProjectPrefix}-${Environment}-StrandsWorkerTaskRoleArn"}}, "RuntimePlatform": {"CpuArchitecture": "X86_64", "OperatingSystemFamily": "LINUX"},
+        "ContainerDefinitions": [{"Name": "strands-worker", "Image": {"Ref": "ImageUri"}, "Essential": true, "ReadonlyRootFilesystem": true, "StopTimeout": 120, "Command": ["python", "-m", "backend.container.ecs_entrypoint"], "Environment": [{"Name": "NOVAMIND_PROCESS_ROLE", "Value": "worker"}, {"Name": "NOVAMIND_LLM_PROVIDER", "Value": "bedrock"}, {"Name": "NOVAMIND_AGENT_ENGINE", "Value": "strands"}, {"Name": "AWS_REGION", "Value": {"Ref": "AWS::Region"}}, {"Name": "BEDROCK_MODEL_ID", "Value": {"Ref": "BedrockModelId"}}, {"Name": "NOVAMIND_INVESTIGATION_QUEUE_URL", "Value": {"Fn::ImportValue": {"Fn::Sub": "${ProjectPrefix}-${Environment}-InvestigationQueueUrl"}}}, {"Name": "NOVAMIND_RDS_CA_BUNDLE_PATH", "Value": "/etc/novamind/rds-ca-bundle.pem"}], "Secrets": [{"Name": "NOVAMIND_POSTGRES_SECRET", "ValueFrom": {"Ref": "PostgresApplicationSecretArn"}}], "LogConfiguration": {"LogDriver": "awslogs", "Options": {"awslogs-group": {"Fn::ImportValue": {"Fn::Sub": "${ProjectPrefix}-${Environment}-StrandsWorkerLogGroupName"}}, "awslogs-region": {"Ref": "AWS::Region"}, "awslogs-stream-prefix": "worker"}}}]
+      }
+    },
+    "ApiService": {"Type": "AWS::ECS::Service", "Properties": {"ServiceName": {"Fn::Sub": "${ProjectPrefix}-api-${Environment}"}, "Cluster": {"Ref": "ClusterName"}, "LaunchType": "FARGATE", "DesiredCount": {"Ref": "ApiDesiredCount"}, "TaskDefinition": {"Ref": "ApiTaskDefinition"}, "EnableExecuteCommand": false, "HealthCheckGracePeriodSeconds": 60, "DeploymentConfiguration": {"DeploymentCircuitBreaker": {"Enable": true, "Rollback": true}, "MaximumPercent": 200, "MinimumHealthyPercent": 100}, "NetworkConfiguration": {"AwsvpcConfiguration": {"AssignPublicIp": "DISABLED", "Subnets": {"Ref": "PrivateSubnetIds"}, "SecurityGroups": [{"Ref": "ApiSecurityGroupId"}]}}, "LoadBalancers": [{"ContainerName": "backend", "ContainerPort": 8000, "TargetGroupArn": {"Ref": "ApiTargetGroupArn"}}]}},
+    "PublisherService": {"Type": "AWS::ECS::Service", "Properties": {"ServiceName": {"Fn::Sub": "${ProjectPrefix}-publisher-${Environment}"}, "Cluster": {"Ref": "ClusterName"}, "LaunchType": "FARGATE", "DesiredCount": {"Ref": "PublisherDesiredCount"}, "TaskDefinition": {"Ref": "PublisherTaskDefinition"}, "EnableExecuteCommand": false, "DeploymentConfiguration": {"DeploymentCircuitBreaker": {"Enable": true, "Rollback": true}, "MaximumPercent": 200, "MinimumHealthyPercent": 100}, "NetworkConfiguration": {"AwsvpcConfiguration": {"AssignPublicIp": "DISABLED", "Subnets": {"Ref": "PrivateSubnetIds"}, "SecurityGroups": [{"Fn::ImportValue": {"Fn::Sub": "${ProjectPrefix}-${Environment}-WorkloadSecurityGroupId"}}]}}}},
+    "WorkerService": {"Type": "AWS::ECS::Service", "Properties": {"ServiceName": {"Fn::Sub": "${ProjectPrefix}-strands-worker-${Environment}"}, "Cluster": {"Ref": "ClusterName"}, "LaunchType": "FARGATE", "DesiredCount": {"Ref": "WorkerDesiredCount"}, "TaskDefinition": {"Ref": "WorkerTaskDefinition"}, "EnableExecuteCommand": false, "DeploymentConfiguration": {"DeploymentCircuitBreaker": {"Enable": true, "Rollback": true}, "MaximumPercent": 200, "MinimumHealthyPercent": 100}, "NetworkConfiguration": {"AwsvpcConfiguration": {"AssignPublicIp": "DISABLED", "Subnets": {"Ref": "PrivateSubnetIds"}, "SecurityGroups": [{"Fn::ImportValue": {"Fn::Sub": "${ProjectPrefix}-${Environment}-WorkloadSecurityGroupId"}}]}}}}
+  },
+  "Outputs": {
+    "ApiTaskDefinitionArn": {"Value": {"Ref": "ApiTaskDefinition"}},
+    "PublisherTaskDefinitionArn": {"Value": {"Ref": "PublisherTaskDefinition"}},
+    "WorkerTaskDefinitionArn": {"Value": {"Ref": "WorkerTaskDefinition"}},
+    "ApiServiceName": {"Value": {"Ref": "ApiService"}},
+    "PublisherServiceName": {"Value": {"Ref": "PublisherService"}},
+    "WorkerServiceName": {"Value": {"Ref": "WorkerService"}}
+  }
+}

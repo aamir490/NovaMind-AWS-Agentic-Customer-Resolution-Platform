@@ -1,0 +1,35 @@
+{
+  "cluster": "novamind-crp-ecs-cluster-dev",
+  "serviceName": "novamind-crp-api-dev",
+  "taskDefinition": "novamind-crp-backend-dev:4",
+  "desiredCount": 1,
+  "launchType": "FARGATE",
+  "networkConfiguration": {
+    "awsvpcConfiguration": {
+      "subnets": [
+        "subnet-0405745b30f4764a0",
+        "subnet-0643d7235c890cfe6"
+      ],
+      "securityGroups": [
+        "sg-050a7d973aa07816a"
+      ],
+      "assignPublicIp": "ENABLED"
+    }
+  },
+  "loadBalancers": [
+    {
+      "targetGroupArn": "arn:aws:elasticloadbalancing:us-east-1:357001292388:targetgroup/novamind-api/1fb811c1e2420344",
+      "containerName": "backend",
+      "containerPort": 8000
+    }
+  ],
+  "healthCheckGracePeriodSeconds": 60,
+  "deploymentConfiguration": {
+    "deploymentCircuitBreaker": {
+      "enable": true,
+      "rollback": true
+    },
+    "maximumPercent": 200,
+    "minimumHealthyPercent": 100
+  }
+}

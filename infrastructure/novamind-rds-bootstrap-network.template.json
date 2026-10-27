@@ -1,0 +1,48 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "NovaMind one-shot RDS bootstrap network: a zero-ingress temporary task security group and one additive RDS PostgreSQL ingress rule. It creates no task, secret, database, NAT gateway, endpoint, or permanent service.",
+  "Parameters": {
+    "VpcId": {"Type": "AWS::EC2::VPC::Id"},
+    "RdsSecurityGroupId": {"Type": "AWS::EC2::SecurityGroup::Id"},
+    "BootstrapSecurityGroupName": {"Type": "String", "Default": "novamind-crp-bootstrap-sg-dev", "AllowedPattern": "^[A-Za-z0-9_+=,.@-]{1,255}$"},
+    "PublicHttpsEgressApproved": {"Type": "String", "Default": "false", "AllowedValues": ["true", "false"]}
+  },
+  "Rules": {
+    "PublicHttpsEgressRequiresApproval": {
+      "Assertions": [{"Assert": {"Fn::Equals": [{"Ref": "PublicHttpsEgressApproved"}, "true"]}, "AssertDescription": "The only internet egress is TCP 443 for one temporary public-IP bootstrap task and requires explicit approval."}]
+    }
+  },
+  "Resources": {
+    "BootstrapSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupName": {"Ref": "BootstrapSecurityGroupName"},
+        "GroupDescription": "One-shot NovaMind RDS bootstrap: zero ingress; PostgreSQL to RDS and approved HTTPS only.",
+        "VpcId": {"Ref": "VpcId"},
+        "SecurityGroupEgress": [
+          {"IpProtocol": "tcp", "FromPort": 5432, "ToPort": 5432, "DestinationSecurityGroupId": {"Ref": "RdsSecurityGroupId"}, "Description": "Private PostgreSQL bootstrap connection only"},
+          {"IpProtocol": "tcp", "FromPort": 443, "ToPort": 443, "CidrIp": "0.0.0.0/0", "Description": "Temporary bootstrap HTTPS only"}
+        ],
+        "Tags": [
+          {"Key": "Project", "Value": "novamind-crp"},
+          {"Key": "Environment", "Value": "dev"},
+          {"Key": "ManagedBy", "Value": "CloudFormation"}
+        ]
+      }
+    },
+    "RdsIngressFromBootstrapSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroupIngress",
+      "Properties": {
+        "GroupId": {"Ref": "RdsSecurityGroupId"},
+        "IpProtocol": "tcp",
+        "FromPort": 5432,
+        "ToPort": 5432,
+        "SourceSecurityGroupId": {"Ref": "BootstrapSecurityGroup"},
+        "Description": "One-shot NovaMind RDS bootstrap only"
+      }
+    }
+  },
+  "Outputs": {
+    "BootstrapSecurityGroupId": {"Value": {"Ref": "BootstrapSecurityGroup"}}
+  }
+}

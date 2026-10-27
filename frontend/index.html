@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#101317" />
+    <meta name="description" content="NovaMind AI — agentic customer resolution with human oversight." />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>NovaMind AI | Customer Resolution</title>
+    <script>
+      (() => {
+        try {
+          const saved = localStorage.getItem('novamind-theme');
+          const theme = saved === 'light' || saved === 'dark'
+            ? saved
+            : matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+          document.documentElement.dataset.theme = theme;
+          document.documentElement.style.colorScheme = theme;
+          document.querySelector('meta[name="theme-color"]').content = theme === 'dark' ? '#0b1018' : '#f4f7fb';
+        } catch { /* Use the CSS default when preference APIs are unavailable. */ }
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

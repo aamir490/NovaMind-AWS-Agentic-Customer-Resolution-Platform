@@ -1,0 +1,147 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Transform": "AWS::LanguageExtensions",
+  "Description": "Opt-in NovaMind CRP Cognito pool, Hosted UI SPA client, Admin/Customer groups, and API configuration secret. Existing pools are referenced, never imported or replaced.",
+  "Parameters": {
+    "ProjectName": {"Type": "String", "Default": "novamind-crp", "AllowedPattern": "^[a-z][a-z0-9-]{1,30}$"},
+    "EnvironmentName": {"Type": "String", "Default": "dev", "AllowedPattern": "^[a-z][a-z0-9-]{1,20}$"},
+    "CreateUserPool": {"Type": "String", "Default": "false", "AllowedValues": ["true", "false"]},
+    "ExistingUserPoolId": {"Type": "String", "Default": "", "AllowedPattern": "^$|^[a-z]{2}-[a-z]+-[0-9]_[A-Za-z0-9]+$"},
+    "CreateGroups": {"Type": "String", "Default": "false", "AllowedValues": ["true", "false"]},
+    "CreateSpaClient": {"Type": "String", "Default": "false", "AllowedValues": ["true", "false"]},
+    "CreateHostedUiDomain": {"Type": "String", "Default": "false", "AllowedValues": ["true", "false"]},
+    "CreateConfigurationSecret": {"Type": "String", "Default": "false", "AllowedValues": ["true", "false"]},
+    "ConfigurationSecretName": {"Type": "String", "Default": "", "AllowedPattern": "^$|^novamind-crp-[A-Za-z0-9/_+=.@-]{1,180}$"},
+    "CustomerBindingsJson": {"Type": "String", "Default": "[]", "MinLength": 2, "MaxLength": 65536, "Description": "JSON array of trusted subject_id/customer_id bindings; no credentials or token material."},
+    "HostedUiDomainPrefix": {"Type": "String", "Default": "", "AllowedPattern": "^$|^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$"},
+    "CallbackUrl": {"Type": "String", "Default": "https://example.invalid/", "AllowedPattern": "^https://[^/?#]+(?:/[^?#]*)?$"},
+    "LogoutUrl": {"Type": "String", "Default": "https://example.invalid/", "AllowedPattern": "^https://[^/?#]+(?:/[^?#]*)?$"},
+    "CustomerGroupName": {"Type": "String", "Default": "customers", "AllowedPattern": "^[A-Za-z0-9_+=,.@-]{1,128}$"},
+    "ReviewerGroupName": {"Type": "String", "Default": "reviewers", "AllowedPattern": "^[A-Za-z0-9_+=,.@-]{1,128}$"},
+    "AdminGroupName": {"Type": "String", "Default": "admins", "AllowedPattern": "^[A-Za-z0-9_+=,.@-]{1,128}$"}
+  },
+  "Rules": {
+    "ExactlyOneUserPoolSource": {
+      "Assertions": [{
+        "Assert": {"Fn::Or": [
+          {"Fn::And": [{"Fn::Equals": [{"Ref": "CreateUserPool"}, "true"]}, {"Fn::Equals": [{"Ref": "ExistingUserPoolId"}, ""]}]},
+          {"Fn::And": [{"Fn::Equals": [{"Ref": "CreateUserPool"}, "false"]}, {"Fn::Not": [{"Fn::Equals": [{"Ref": "ExistingUserPoolId"}, ""]}]}]}
+        ]},
+        "AssertDescription": "Create a new pool only when no existing pool ID was confirmed; otherwise reference the existing pool."
+      }]
+    },
+    "DistinctApplicationGroups": {
+      "Assertions": [{
+        "Assert": {"Fn::Not": [{"Fn::Equals": [{"Ref": "CustomerGroupName"}, {"Ref": "AdminGroupName"}]}]},
+        "AssertDescription": "The Cognito Admin and Customer groups must be distinct."
+      }]
+    },
+    "HostedUiDomainRequiresPrefix": {
+      "RuleCondition": {"Fn::Equals": [{"Ref": "CreateHostedUiDomain"}, "true"]},
+      "Assertions": [{
+        "Assert": {"Fn::Not": [{"Fn::Equals": [{"Ref": "HostedUiDomainPrefix"}, ""]}]},
+        "AssertDescription": "A unique Hosted UI domain prefix is required when creating a domain."
+      }]
+    },
+    "ConfigurationSecretRequiresComponents": {
+      "RuleCondition": {"Fn::Equals": [{"Ref": "CreateConfigurationSecret"}, "true"]},
+      "Assertions": [{
+        "Assert": {"Fn::And": [
+          {"Fn::Equals": [{"Ref": "CreateGroups"}, "true"]},
+          {"Fn::Equals": [{"Ref": "CreateSpaClient"}, "true"]},
+          {"Fn::Or": [
+            {"Fn::Equals": [{"Ref": "CreateUserPool"}, "true"]},
+            {"Fn::Not": [{"Fn::Equals": [{"Ref": "ExistingUserPoolId"}, ""]}]}
+          ]}
+        ]},
+        "AssertDescription": "The API configuration secret requires role groups, a public SPA client, and a selected user pool."
+      }]
+    }
+  },
+  "Conditions": {
+    "CreateUserPoolCondition": {"Fn::Equals": [{"Ref": "CreateUserPool"}, "true"]},
+    "CreateGroupsCondition": {"Fn::Equals": [{"Ref": "CreateGroups"}, "true"]},
+    "CreateSpaClientCondition": {"Fn::Equals": [{"Ref": "CreateSpaClient"}, "true"]},
+    "CreateHostedUiDomainCondition": {"Fn::Equals": [{"Ref": "CreateHostedUiDomain"}, "true"]},
+    "CreateConfigurationSecretCondition": {"Fn::Equals": [{"Ref": "CreateConfigurationSecret"}, "true"]},
+    "ConfigurationSecretNameProvided": {"Fn::Not": [{"Fn::Equals": [{"Ref": "ConfigurationSecretName"}, ""]}]}
+  },
+  "Resources": {
+    "UserPool": {
+      "Condition": "CreateUserPoolCondition",
+      "Type": "AWS::Cognito::UserPool",
+      "Properties": {
+        "UserPoolName": {"Fn::Sub": "${ProjectName}-${EnvironmentName}"},
+        "UsernameAttributes": ["email"],
+        "AutoVerifiedAttributes": ["email"],
+        "UsernameConfiguration": {"CaseSensitive": false},
+        "MfaConfiguration": "OFF",
+        "AccountRecoverySetting": {"RecoveryMechanisms": [{"Name": "verified_email", "Priority": 1}]},
+        "Policies": {"PasswordPolicy": {"MinimumLength": 12, "RequireLowercase": true, "RequireUppercase": true, "RequireNumbers": true, "RequireSymbols": true, "TemporaryPasswordValidityDays": 7}},
+        "Schema": [{"Name": "email", "Required": true, "Mutable": true, "AttributeDataType": "String"}],
+        "UserPoolTags": {"Project": "novamind-crp", "Environment": "dev", "ManagedBy": "CloudFormation"}
+      }
+    },
+    "CustomerGroup": {
+      "Condition": "CreateGroupsCondition",
+      "Type": "AWS::Cognito::UserPoolGroup",
+      "Properties": {"GroupName": {"Ref": "CustomerGroupName"}, "UserPoolId": {"Fn::If": ["CreateUserPoolCondition", {"Ref": "UserPool"}, {"Ref": "ExistingUserPoolId"}]}}
+    },
+    "AdminGroup": {
+      "Condition": "CreateGroupsCondition",
+      "Type": "AWS::Cognito::UserPoolGroup",
+      "Properties": {"GroupName": {"Ref": "AdminGroupName"}, "UserPoolId": {"Fn::If": ["CreateUserPoolCondition", {"Ref": "UserPool"}, {"Ref": "ExistingUserPoolId"}]}}
+    },
+    "SpaClient": {
+      "Condition": "CreateSpaClientCondition",
+      "Type": "AWS::Cognito::UserPoolClient",
+      "Properties": {
+        "ClientName": {"Fn::Sub": "${ProjectName}-${EnvironmentName}-spa"},
+        "UserPoolId": {"Fn::If": ["CreateUserPoolCondition", {"Ref": "UserPool"}, {"Ref": "ExistingUserPoolId"}]},
+        "GenerateSecret": false,
+        "AllowedOAuthFlowsUserPoolClient": true,
+        "AllowedOAuthFlows": ["code"],
+        "AllowedOAuthScopes": ["openid"],
+        "SupportedIdentityProviders": ["COGNITO"],
+        "CallbackURLs": [{"Ref": "CallbackUrl"}],
+        "LogoutURLs": [{"Ref": "LogoutUrl"}],
+        "PreventUserExistenceErrors": "ENABLED",
+        "EnableTokenRevocation": true,
+        "AccessTokenValidity": 60,
+        "IdTokenValidity": 60,
+        "RefreshTokenValidity": 1,
+        "TokenValidityUnits": {"AccessToken": "minutes", "IdToken": "minutes", "RefreshToken": "days"}
+      }
+    },
+    "HostedUiDomain": {
+      "Condition": "CreateHostedUiDomainCondition",
+      "Type": "AWS::Cognito::UserPoolDomain",
+      "Properties": {
+        "Domain": {"Ref": "HostedUiDomainPrefix"},
+        "UserPoolId": {"Fn::If": ["CreateUserPoolCondition", {"Ref": "UserPool"}, {"Ref": "ExistingUserPoolId"}]}
+      }
+    },
+    "CognitoConfigurationSecret": {
+      "Condition": "CreateConfigurationSecretCondition",
+      "Type": "AWS::SecretsManager::Secret",
+      "DependsOn": ["CustomerGroup", "AdminGroup", "SpaClient"],
+      "Properties": {
+        "Name": {"Fn::If": ["ConfigurationSecretNameProvided", {"Ref": "ConfigurationSecretName"}, {"Fn::Sub": "${ProjectName}-cognito-config-${EnvironmentName}"}]},
+        "Description": "Non-secret Cognito validation configuration for the NovaMind CRP API; contains no client secret or password.",
+        "SecretString": {"Fn::Sub": ["{\"issuer\":\"https://cognito-idp.${AWS::Region}.amazonaws.com/${PoolId}\",\"client_id\":\"${ClientId}\",\"customer_group\":\"${CustomerGroup}\",\"reviewer_group\":\"${ReviewerGroup}\",\"admin_group\":\"${AdminGroup}\",\"customer_bindings\":${Bindings}}", {"PoolId": {"Fn::If": ["CreateUserPoolCondition", {"Ref": "UserPool"}, {"Ref": "ExistingUserPoolId"}]}, "ClientId": {"Ref": "SpaClient"}, "CustomerGroup": {"Ref": "CustomerGroupName"}, "ReviewerGroup": {"Ref": "ReviewerGroupName"}, "AdminGroup": {"Ref": "AdminGroupName"}, "Bindings": {"Fn::ToJsonString": {"Ref": "CustomerBindingsJson"}}}]},
+        "Tags": [
+          {"Key": "Project", "Value": "novamind-crp"},
+          {"Key": "Environment", "Value": "dev"},
+          {"Key": "ManagedBy", "Value": "CloudFormation"}
+        ]
+      }
+    }
+  },
+  "Outputs": {
+    "UserPoolId": {"Value": {"Fn::If": ["CreateUserPoolCondition", {"Ref": "UserPool"}, {"Ref": "ExistingUserPoolId"}]}},
+    "Issuer": {"Value": {"Fn::Join": ["", ["https://cognito-idp.", {"Ref": "AWS::Region"}, ".amazonaws.com/", {"Fn::If": ["CreateUserPoolCondition", {"Ref": "UserPool"}, {"Ref": "ExistingUserPoolId"}]}]]}},
+    "SpaClientId": {"Condition": "CreateSpaClientCondition", "Value": {"Ref": "SpaClient"}},
+    "HostedUiDomain": {"Condition": "CreateHostedUiDomainCondition", "Value": {"Fn::Sub": "https://${HostedUiDomain}.auth.${AWS::Region}.amazoncognito.com"}},
+    "CognitoConfigurationSecretArn": {"Condition": "CreateConfigurationSecretCondition", "Value": {"Ref": "CognitoConfigurationSecret"}}
+  }
+}

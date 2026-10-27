@@ -1,0 +1,139 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Opt-in novamind-crp dev private S3 frontend and CloudFront distribution. The default behavior serves the private SPA bucket; /api/* uses the existing CloudFront VPC Origin and is uncached.",
+  "Parameters": {
+    "ProjectPrefix": {"Type": "String", "Default": "novamind-crp", "AllowedValues": ["novamind-crp"]},
+    "Environment": {"Type": "String", "Default": "dev", "AllowedValues": ["dev"]},
+    "FrontendBucketName": {"Type": "String", "Default": "novamind-crp-frontend-dev", "AllowedValues": ["novamind-crp-frontend-dev", "novamind-crp-frontend-repair-dev"]},
+    "ExistingCloudFrontVpcOriginId": {"Type": "String", "Default": "vo_JfIJZ1vwgbqBqUZmbvDyu3", "AllowedValues": ["vo_JfIJZ1vwgbqBqUZmbvDyu3"]},
+    "ExistingInternalAlbDnsName": {"Type": "String", "Default": "internal-novamind-crp-api-internal-1626517630.us-east-1.elb.amazonaws.com", "AllowedPattern": "^[a-z0-9.-]+$"},
+    "CognitoHostedUiDomain": {"Type": "String", "Default": "https://novamind-crp-dev-357001292388.auth.us-east-1.amazoncognito.com", "AllowedValues": ["https://novamind-crp-dev-357001292388.auth.us-east-1.amazoncognito.com"]}
+  },
+  "Resources": {
+    "FrontendBucket": {
+      "Type": "AWS::S3::Bucket",
+      "DeletionPolicy": "Retain",
+      "UpdateReplacePolicy": "Retain",
+      "Properties": {
+        "BucketName": {"Ref": "FrontendBucketName"},
+        "BucketEncryption": {"ServerSideEncryptionConfiguration": [{"ServerSideEncryptionByDefault": {"SSEAlgorithm": "AES256"}}]},
+        "OwnershipControls": {"Rules": [{"ObjectOwnership": "BucketOwnerEnforced"}]},
+        "PublicAccessBlockConfiguration": {"BlockPublicAcls": true, "BlockPublicPolicy": true, "IgnorePublicAcls": true, "RestrictPublicBuckets": true},
+        "VersioningConfiguration": {"Status": "Enabled"},
+        "Tags": [{"Key": "Project", "Value": "novamind-crp"}, {"Key": "Environment", "Value": "dev"}, {"Key": "ManagedBy", "Value": "CloudFormation"}]
+      }
+    },
+    "FrontendOriginAccessControl": {
+      "Type": "AWS::CloudFront::OriginAccessControl",
+      "Properties": {
+        "OriginAccessControlConfig": {
+          "Name": {"Fn::Sub": "${ProjectPrefix}-frontend-oac-${Environment}"},
+          "Description": "SigV4 access from the NovaMind CRP CloudFront distribution to the private frontend bucket.",
+          "OriginAccessControlOriginType": "s3",
+          "SigningBehavior": "always",
+          "SigningProtocol": "sigv4"
+        }
+      }
+    },
+    "SpaRewriteFunction": {
+      "Type": "AWS::CloudFront::Function",
+      "Properties": {
+        "AutoPublish": true,
+        "FunctionConfig": {"Comment": "NovaMind CRP SPA fallback without rewriting API paths", "Runtime": "cloudfront-js-2.0"},
+        "Name": {"Fn::Sub": "${ProjectPrefix}-spa-rewrite-${Environment}"},
+        "FunctionCode": "function handler(event) { var request = event.request; var uri = request.uri || '/'; if (uri.indexOf('/api/') === 0 || uri.indexOf('.') !== -1) { return request; } request.uri = '/index.html'; return request; }"
+      }
+    },
+    "FrontendResponseHeadersPolicy": {
+      "Type": "AWS::CloudFront::ResponseHeadersPolicy",
+      "Properties": {
+        "ResponseHeadersPolicyConfig": {
+          "Name": {"Fn::Sub": "${ProjectPrefix}-frontend-security-${Environment}"},
+          "Comment": "NovaMind CRP frontend security headers for SPA and Cognito Hosted UI integration.",
+          "SecurityHeadersConfig": {
+            "StrictTransportSecurity": {"AccessControlMaxAgeSec": 31536000, "IncludeSubdomains": true, "Preload": false, "Override": true},
+            "ContentTypeOptions": {"Override": true},
+            "FrameOptions": {"FrameOption": "DENY", "Override": true},
+            "ReferrerPolicy": {"ReferrerPolicy": "strict-origin-when-cross-origin", "Override": true},
+            "ContentSecurityPolicy": {
+              "ContentSecurityPolicy": {"Fn::Sub": "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self' ${CognitoHostedUiDomain}; connect-src 'self' ${CognitoHostedUiDomain}; img-src 'self' data:; font-src 'self'; style-src 'self'; style-src-attr 'unsafe-inline'; script-src 'self' 'sha256-nEFK07V+M+6UXXlcO9PHnsZ2p6NQmTBp+0eR8bmpeGM='"},
+              "Override": true
+            }
+          }
+        }
+      }
+    },
+    "FrontendDistribution": {
+      "Type": "AWS::CloudFront::Distribution",
+      "Properties": {
+        "DistributionConfig": {
+          "Comment": {"Fn::Sub": "${ProjectPrefix} ${Environment} private frontend and API distribution"},
+          "Enabled": true,
+          "HttpVersion": "http2and3",
+          "PriceClass": "PriceClass_100",
+          "DefaultRootObject": "index.html",
+          "Origins": [
+            {
+              "Id": "frontend-s3",
+              "DomainName": {"Fn::GetAtt": ["FrontendBucket", "RegionalDomainName"]},
+              "OriginAccessControlId": {"Ref": "FrontendOriginAccessControl"},
+              "S3OriginConfig": {"OriginAccessIdentity": ""}
+            },
+            {
+              "Id": "api-vpc-origin",
+              "DomainName": {"Ref": "ExistingInternalAlbDnsName"},
+              "VpcOriginConfig": {"VpcOriginId": {"Ref": "ExistingCloudFrontVpcOriginId"}, "OwnerAccountId": {"Ref": "AWS::AccountId"}}
+            }
+          ],
+          "DefaultCacheBehavior": {
+            "TargetOriginId": "frontend-s3",
+            "ViewerProtocolPolicy": "redirect-to-https",
+            "AllowedMethods": ["GET", "HEAD", "OPTIONS"],
+            "CachedMethods": ["GET", "HEAD", "OPTIONS"],
+            "CachePolicyId": "658327ea-f89d-4fab-a63d-7e88639e58f6",
+            "ResponseHeadersPolicyId": {"Ref": "FrontendResponseHeadersPolicy"},
+            "Compress": true,
+            "FunctionAssociations": [{"EventType": "viewer-request", "FunctionARN": {"Ref": "SpaRewriteFunction"}}]
+          },
+          "CacheBehaviors": [{
+            "PathPattern": "/api/*",
+            "TargetOriginId": "api-vpc-origin",
+            "ViewerProtocolPolicy": "redirect-to-https",
+            "AllowedMethods": ["GET", "HEAD", "OPTIONS", "PUT", "PATCH", "POST", "DELETE"],
+            "CachedMethods": ["GET", "HEAD", "OPTIONS"],
+            "CachePolicyId": "4135ea2d-6df8-44a3-9df3-4b5a84be39ad",
+            "OriginRequestPolicyId": "b689b0a8-53d0-40ab-baf2-68738e2966ac",
+            "ResponseHeadersPolicyId": {"Ref": "FrontendResponseHeadersPolicy"},
+            "Compress": true
+          }],
+          "Restrictions": {"GeoRestriction": {"RestrictionType": "none"}},
+          "ViewerCertificate": {"CloudFrontDefaultCertificate": true}
+        },
+        "Tags": [{"Key": "Project", "Value": "novamind-crp"}, {"Key": "Environment", "Value": "dev"}, {"Key": "ManagedBy", "Value": "CloudFormation"}]
+      }
+    },
+    "FrontendBucketPolicy": {
+      "Type": "AWS::S3::BucketPolicy",
+      "Properties": {
+        "Bucket": {"Ref": "FrontendBucket"},
+        "PolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [{
+            "Sid": "AllowOnlyThisCloudFrontDistribution",
+            "Effect": "Allow",
+            "Principal": {"Service": "cloudfront.amazonaws.com"},
+            "Action": "s3:GetObject",
+            "Resource": {"Fn::Sub": "${FrontendBucket.Arn}/*"},
+            "Condition": {"StringEquals": {"AWS:SourceArn": {"Fn::Sub": "arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/${FrontendDistribution}"}}}
+          }]
+        }
+      }
+    }
+  },
+  "Outputs": {
+    "FrontendBucketName": {"Value": {"Ref": "FrontendBucket"}, "Export": {"Name": {"Fn::Sub": "${ProjectPrefix}-${Environment}-FrontendBucketName"}}},
+    "FrontendDistributionId": {"Value": {"Ref": "FrontendDistribution"}, "Export": {"Name": {"Fn::Sub": "${ProjectPrefix}-${Environment}-FrontendDistributionId"}}},
+    "FrontendDistributionDomainName": {"Value": {"Fn::GetAtt": ["FrontendDistribution", "DomainName"]}, "Export": {"Name": {"Fn::Sub": "${ProjectPrefix}-${Environment}-FrontendDistributionDomainName"}}},
+    "FrontendOriginAccessControlId": {"Value": {"Ref": "FrontendOriginAccessControl"}}
+  }
+}
